@@ -2,6 +2,8 @@
 install/
 build/
 log/
+.claude
+.vscode
 
 # ROS1 leftovers
 devel/
