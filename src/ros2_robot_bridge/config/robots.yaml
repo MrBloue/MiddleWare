@@ -1,0 +1,23 @@
+# robots.yaml
+# Reference config – values here are overridden by launch arguments.
+# Copy this file and adapt for your lab environment.
+
+robot_detector:
+  ros__parameters:
+    robot_type:    "nao"       # nao | qtrobot
+    robot_version: "v6"        # v5 | v6  (NAO)   /  qt1 | qt2 (QTrobot)
+
+nao_bridge:
+  ros__parameters:
+    naoqi_host: "192.168.24.100"
+    naoqi_port: 9090
+
+qt_bridge:
+  ros__parameters:
+    qt_host: "192.168.100.1"
+    qt_port: 9090
+
+command_dispatcher:
+  ros__parameters:
+    queue_commands: false
+    cmd_timeout_s:  10.0

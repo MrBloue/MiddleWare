@@ -1,0 +1,41 @@
+cmake_minimum_required(VERSION 3.8)
+project(ros2_robot_bridge)
+
+find_package(ament_cmake REQUIRED)
+find_package(ament_cmake_python REQUIRED)
+find_package(rclpy REQUIRED)
+find_package(std_msgs REQUIRED)
+find_package(rosidl_default_generators REQUIRED)
+
+rosidl_generate_interfaces(${PROJECT_NAME}
+  "msg/RobotCmd.msg"
+  "msg/RobotConfig.msg"
+  DEPENDENCIES std_msgs
+)
+
+install(PROGRAMS
+  ros2_robot_bridge/robot_detector.py
+  ros2_robot_bridge/nao_bridge.py
+  ros2_robot_bridge/nao_sensors.py
+  ros2_robot_bridge/qt_bridge.py
+  ros2_robot_bridge/command_dispatcher.py
+  ros2_robot_bridge/robot_bridge_template.py
+  DESTINATION lib/${PROJECT_NAME}
+)
+
+install(DIRECTORY launch DESTINATION share/${PROJECT_NAME})
+install(DIRECTORY config  DESTINATION share/${PROJECT_NAME})
+
+# base_bridge.py is a shared module imported by all bridge adapters — not an executable
+install(FILES
+  ros2_robot_bridge/__init__.py
+  ros2_robot_bridge/base_bridge.py
+  DESTINATION ${PYTHON_INSTALL_DIR}/${PROJECT_NAME}
+)
+
+if(BUILD_TESTING)
+  find_package(ament_lint_auto REQUIRED)
+  ament_lint_auto_find_test_dependencies()
+endif()
+
+ament_package()
