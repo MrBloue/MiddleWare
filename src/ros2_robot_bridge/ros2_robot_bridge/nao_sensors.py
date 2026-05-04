@@ -38,10 +38,8 @@ Parameters (all optional):
   poll_hz             float   20.0             — sensor poll frequency
   sound_sensitivity   float   0.5              — ALSoundDetection sensitivity (0.0–1.0)
 """
-import threading
-
 import rclpy
-from rclpy.node import Node
+from ros2_robot_bridge.base_sensor import SensorBase
 from std_msgs.msg import Bool, Float32
 
 try:
@@ -106,7 +104,7 @@ SOUND_DETECTED_KEY  = "SoundDetected"
 SOUND_LOCATION_KEY  = "ALSoundLocalization/SoundLocated"
 
 
-class NaoSensors(Node):
+class NaoSensors(SensorBase):
     """Polls NAO / Pepper sensors and publishes them as ROS2 topics."""
 
     def __init__(self):
@@ -155,12 +153,12 @@ class NaoSensors(Node):
         # Set to True once, to log the raw localization structure for diagnostics.
         self._loc_logged          = False
 
-        threading.Thread(target=self._connect, daemon=True).start()
         self.get_logger().info("[Sensors] Node started — connecting to robot ...")
+        self._start_connect()
 
     # ── Connection ───────────────────────────────────────────────────────────
 
-    def _connect(self):
+    def connect(self):
         """Open a qi session and acquire service proxies. Runs in a background thread."""
         if not _HAS_QI:
             self.get_logger().error("[Sensors] qi SDK not installed — node inactive.")
@@ -245,8 +243,7 @@ class NaoSensors(Node):
 
         self.get_logger().info(f"[Sensors] Connected to {host}:{port} — sensors active.")
 
-        hz = self.get_parameter("poll_hz").value
-        self.create_timer(1.0 / hz, self._poll)
+        self._start_polling(self.get_parameter("poll_hz").value)
 
     # ── Polling callback ─────────────────────────────────────────────────────
 
@@ -332,19 +329,16 @@ class NaoSensors(Node):
 
     # ── Shutdown ─────────────────────────────────────────────────────────────
 
-    def destroy_node(self):
-        """Unsubscribe from all NAOqi services before the node exits."""
-        for name, proxy in [
-            ("ALSonar",              self._sonar),
-            ("ALSoundDetection",     self._sound_detection),
-            ("ALSoundLocalization",  self._sound_localization),
-        ]:
+    def disconnect(self):
+        """Unsubscribe from all NAOqi services."""
+        for proxy in [self._sonar, self._sound_detection, self._sound_localization]:
             if proxy:
                 try:
                     proxy.unsubscribe("ros2_sensors")
                 except Exception:
                     pass
-        super().destroy_node()
+        self._session = None
+        self._memory  = None
 
 
 def main(args=None):

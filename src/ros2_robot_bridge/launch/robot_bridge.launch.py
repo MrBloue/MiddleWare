@@ -42,7 +42,9 @@ def _make_nodes(context, *args, **kwargs):
     last_octet = host.split(".")[-1]
     ns = f"{robot_type}_{last_octet}"
 
-    return [
+    is_qt = (robot_type == "qtrobot")
+
+    common_nodes = [
         Node(
             package="ros2_robot_bridge",
             executable="robot_detector.py",
@@ -52,7 +54,7 @@ def _make_nodes(context, *args, **kwargs):
             parameters=[{
                 "robot_type":    LaunchConfiguration("robot_type"),
                 "robot_version": LaunchConfiguration("robot_version"),
-            }],#it takes the input and processes it to make it usable 
+            }],
         ),
         Node(
             package="ros2_robot_bridge",
@@ -65,7 +67,7 @@ def _make_nodes(context, *args, **kwargs):
                 "naoqi_port":     LaunchConfiguration("naoqi_port"),
                 "naoqi_scheme":   LaunchConfiguration("naoqi_scheme"),
                 "naoqi_ssl_cert": LaunchConfiguration("naoqi_ssl_cert"),
-            }],#connects to nao or pepper and adapts the move to naoqi
+            }],
         ),
         Node(
             package="ros2_robot_bridge",
@@ -76,7 +78,7 @@ def _make_nodes(context, *args, **kwargs):
             parameters=[{
                 "qt_host": LaunchConfiguration("qt_host"),
                 "qt_port": LaunchConfiguration("qt_port"),
-            }],#connects to Qtrobot and translates to the rosply topic language
+            }],
         ),
         Node(
             package="ros2_robot_bridge",
@@ -87,9 +89,26 @@ def _make_nodes(context, *args, **kwargs):
             parameters=[{
                 "queue_commands": LaunchConfiguration("queue_commands"),
                 "cmd_timeout_s":  LaunchConfiguration("cmd_timeout_s"),
-            }],#displays in the logs the message and transmits it, also checks for sintax errors
+            }],
         ),
-        Node(
+    ]
+
+    # Sensor node: qt_sensor for QTrobot, nao_sensors for NAO/Pepper.
+    if is_qt:
+        sensor_node = Node(
+            package="ros2_robot_bridge",
+            executable="qt_sensor.py",
+            name="qt_sensor",
+            namespace=ns,
+            output="screen",
+            parameters=[{
+                "qt_host":   LaunchConfiguration("qt_host"),
+                "qt_port":   LaunchConfiguration("qt_port"),
+                "sensor_hz": LaunchConfiguration("sensor_poll_hz"),
+            }],
+        )
+    else:
+        sensor_node = Node(
             package="ros2_robot_bridge",
             executable="nao_sensors.py",
             name="nao_sensors",
@@ -101,9 +120,10 @@ def _make_nodes(context, *args, **kwargs):
                 "naoqi_port":        LaunchConfiguration("naoqi_port"),
                 "poll_hz":           LaunchConfiguration("sensor_poll_hz"),
                 "sound_sensitivity": LaunchConfiguration("sound_sensitivity"),
-            }],#publishes touch buttons, sonar, battery, sound detection and localization
-        ),
-    ]
+            }],
+        )
+
+    return common_nodes + [sensor_node]
 
 
 def generate_launch_description() -> LaunchDescription:

@@ -39,8 +39,8 @@ QT_JOINT_TOPICS = {
 # Positional order for each Float64MultiArray command topic
 QT_JOINT_ORDER = {
     "head":  ["HeadPitch", "HeadYaw"],
-    "left":  ["LeftElbowRoll", "LeftShoulderPitch", "LeftShoulderRoll"],
-    "right": ["RightElbowRoll", "RightShoulderPitch", "RightShoulderRoll"],
+    "left":  ["LeftShoulderPitch", "LeftShoulderRoll", "LeftElbowRoll"],
+    "right": ["RightShoulderPitch", "RightShoulderRoll", "RightElbowRoll"],
 }
 
 # Universal motion name → QTrobot gesture path.
@@ -81,6 +81,7 @@ QT_MOTION_MAP = {
     "arm_up":                     "one-arm-up",
     "refuse":                     "refuse",
     "stubborn":                   "refuse",
+    "hoora":                      "hoora",
     "yay":                        "hoora",
     "ecstatic":                   "hoora",
     "excited_anim":               "hoora",
@@ -92,6 +93,8 @@ QT_MOTION_MAP = {
     "clapping":                   "clapping",
     "play_hands":                 "clapping",
     "peekaboo":                   "peekaboo",
+    "peekaboo-back":              "peekaboo-back",
+    "peekaboo_back":              "peekaboo-back",
     "hide_eyes":                  "peekaboo",
     "hide_hands":                 "peekaboo",
     "ohno":                       "ohno",
@@ -161,10 +164,11 @@ QT_MOTION_MAP = {
     "pretend_play":               None,
     "show_face":                  None,
     "show_qt":                    None,
+    "qt":                         "show_QT",
     "swipe_right":                "swipe_right",
     "swipe_left":                 "swipe_left",
-    # --- Dances (root-level on QTrobot, NOT under QT/) ---
-    "dance":                      "@Dance",
+    # --- Dances (Dance-X-X variants are under QT/ on this robot) ---
+    "dance":                      "@Dance-1-1",
     "dance_1_1":                  "@Dance-1-1",
     "dance_1_2":                  "@Dance-1-2",
     "dance_1_3":                  "@Dance-1-3",
@@ -578,14 +582,14 @@ QT_MOTION_MAP = {
 # position snapshots.  Each step is (joint_dict, hold_seconds).
 #
 # Available joints and approximate ranges (radians):
-#   HeadPitch        -0.7 … +0.7   (neg = look up, pos = look down)
-#   HeadYaw          -1.5 … +1.5   (neg = right, pos = left)
-#   LeftShoulderPitch -2.0 … +0.5  (neg = arm up/forward, pos = arm down)
-#   LeftShoulderRoll   0.0 … +1.5  (pos = away from body)
-#   LeftElbowRoll     -1.5 … 0.0   (neg = elbow bent)
-#   RightShoulderPitch -2.0 … +0.5
-#   RightShoulderRoll  -1.5 … 0.0  (neg = away from body)
-#   RightElbowRoll     0.0 … +1.5  (pos = elbow bent)
+#   HeadPitch          -40° … +40°   (neg = look up, pos = look down)
+#   HeadYaw            -85° … +85°   (neg = right, pos = left)
+#   LeftShoulderPitch  -115° … +30°  (neg = arm up/forward, pos = arm down)
+#   LeftShoulderRoll     0° … +85°   (pos = away from body)
+#   LeftElbowRoll      -85° … 0°     (neg = elbow bent)
+#   RightShoulderPitch -115° … +30°
+#   RightShoulderRoll  -85° … 0°     (neg = away from body)
+#   RightElbowRoll       0° … +85°   (pos = elbow bent)
 #
 # Only the joints listed in each step are updated; others hold their position.
 # Checked BEFORE QT_MOTION_MAP so these override the service-call path.
@@ -599,61 +603,72 @@ _QT_HOME = {
 QT_CUSTOM_GESTURES: dict[str, list[tuple[dict, float]]] = {
     # Arms wide, flap twice, return home
     "fly": [
-        ({"LeftShoulderPitch": -1.2, "LeftShoulderRoll":  1.0, "LeftElbowRoll": -0.3,
-          "RightShoulderPitch": -1.2, "RightShoulderRoll": -1.0, "RightElbowRoll": 0.3}, 0.6),
-        ({"LeftShoulderPitch": -0.5, "LeftShoulderRoll":  0.7,
-          "RightShoulderPitch": -0.5, "RightShoulderRoll": -0.7}, 0.3),
-        ({"LeftShoulderPitch": -1.2, "LeftShoulderRoll":  1.0,
-          "RightShoulderPitch": -1.2, "RightShoulderRoll": -1.0}, 0.3),
-        ({"LeftShoulderPitch": -0.5, "LeftShoulderRoll":  0.7,
-          "RightShoulderPitch": -0.5, "RightShoulderRoll": -0.7}, 0.3),
+        ({"LeftShoulderPitch": -70, "LeftShoulderRoll":  55, "LeftElbowRoll": -15,
+          "RightShoulderPitch": -70, "RightShoulderRoll": -55, "RightElbowRoll": 15}, 0.6),
+        ({"LeftShoulderPitch": -30, "LeftShoulderRoll":  40,
+          "RightShoulderPitch": -30, "RightShoulderRoll": -40}, 0.3),
+        ({"LeftShoulderPitch": -70, "LeftShoulderRoll":  55,
+          "RightShoulderPitch": -70, "RightShoulderRoll": -55}, 0.3),
+        ({"LeftShoulderPitch": -30, "LeftShoulderRoll":  40,
+          "RightShoulderPitch": -30, "RightShoulderRoll": -40}, 0.3),
         (dict(_QT_HOME), 0.5),
     ],
     # Right hand to ear, head tilted, small nod × 2
     "phone_call": [
-        ({"RightShoulderPitch": -1.1, "RightShoulderRoll": -0.2, "RightElbowRoll": 1.3,
-          "HeadYaw": 0.4}, 0.5),
-        ({"HeadPitch": 0.15}, 0.25),
-        ({"HeadPitch": 0.0}, 0.25),
-        ({"HeadPitch": 0.15}, 0.25),
-        ({"HeadPitch": 0.0}, 0.25),
+        ({"RightShoulderPitch": -60, "RightShoulderRoll": -10, "RightElbowRoll": 75,
+          "HeadYaw": 25}, 0.5),
+        ({"HeadPitch": 10}, 0.25),
+        ({"HeadPitch":  0}, 0.25),
+        ({"HeadPitch": 10}, 0.25),
+        ({"HeadPitch":  0}, 0.25),
         (dict(_QT_HOME), 0.5),
     ],
     # Steering-wheel pose, turn left-right twice
     "drive": [
-        ({"LeftShoulderPitch": -0.8, "LeftShoulderRoll":  0.4, "LeftElbowRoll": -0.5,
-          "RightShoulderPitch": -0.8, "RightShoulderRoll": -0.4, "RightElbowRoll": 0.5}, 0.4),
-        ({"LeftShoulderPitch": -0.6, "LeftShoulderRoll":  0.6, "LeftElbowRoll": -0.3,
-          "RightShoulderPitch": -1.0, "RightShoulderRoll": -0.2, "RightElbowRoll": 0.7}, 0.4),
-        ({"LeftShoulderPitch": -1.0, "LeftShoulderRoll":  0.2, "LeftElbowRoll": -0.7,
-          "RightShoulderPitch": -0.6, "RightShoulderRoll": -0.6, "RightElbowRoll": 0.3}, 0.4),
-        ({"LeftShoulderPitch": -0.8, "LeftShoulderRoll":  0.4, "LeftElbowRoll": -0.5,
-          "RightShoulderPitch": -0.8, "RightShoulderRoll": -0.4, "RightElbowRoll": 0.5}, 0.4),
+        ({"LeftShoulderPitch": -45, "LeftShoulderRoll":  25, "LeftElbowRoll": -30,
+          "RightShoulderPitch": -45, "RightShoulderRoll": -25, "RightElbowRoll": 30}, 0.4),
+        ({"LeftShoulderPitch": -35, "LeftShoulderRoll":  35, "LeftElbowRoll": -20,
+          "RightShoulderPitch": -55, "RightShoulderRoll": -10, "RightElbowRoll": 40}, 0.4),
+        ({"LeftShoulderPitch": -55, "LeftShoulderRoll":  10, "LeftElbowRoll": -40,
+          "RightShoulderPitch": -35, "RightShoulderRoll": -35, "RightElbowRoll": 20}, 0.4),
+        ({"LeftShoulderPitch": -45, "LeftShoulderRoll":  25, "LeftElbowRoll": -30,
+          "RightShoulderPitch": -45, "RightShoulderRoll": -25, "RightElbowRoll": 30}, 0.4),
         (dict(_QT_HOME), 0.5),
     ],
     # Two quick head dips (no sound on QT, but conveys the idea)
     "beep": [
-        ({"HeadPitch": 0.3}, 0.15),
-        ({"HeadPitch": 0.0}, 0.15),
-        ({"HeadPitch": 0.3}, 0.15),
-        ({"HeadPitch": 0.0}, 0.15),
+        ({"HeadPitch": 15}, 0.15),
+        ({"HeadPitch":  0}, 0.15),
+        ({"HeadPitch": 15}, 0.15),
+        ({"HeadPitch":  0}, 0.15),
     ],
-    # Hands framing face — tilt head slightly
+    # Hands framing face — arms raised, elbows bent inward, tilt head
     "show_face": [
-        ({"LeftShoulderPitch": -1.4, "LeftShoulderRoll":  0.4, "LeftElbowRoll": -1.0,
-          "RightShoulderPitch": -1.4, "RightShoulderRoll": -0.4, "RightElbowRoll": 1.0,
-          "HeadPitch": -0.2}, 0.7),
-        ({"HeadPitch": 0.0}, 0.3),
+        ({"LeftShoulderPitch": -80, "LeftShoulderRoll":  25, "LeftElbowRoll": -55,
+          "RightShoulderPitch": -80, "RightShoulderRoll": -25, "RightElbowRoll": 55,
+          "HeadPitch": -10}, 0.7),
+        ({"HeadPitch": 0}, 0.3),
+        (dict(_QT_HOME), 0.5),
+    ],
+    # Both arms shoot up in a V, pump twice, return — celebration cheer
+    "hoora": [
+        ({"LeftShoulderPitch": -85, "LeftShoulderRoll":  30, "LeftElbowRoll": -10,
+          "RightShoulderPitch": -85, "RightShoulderRoll": -30, "RightElbowRoll": 10,
+          "HeadPitch": -10}, 0.5),
+        ({"LeftShoulderPitch": -65, "RightShoulderPitch": -65}, 0.2),
+        ({"LeftShoulderPitch": -125, "RightShoulderPitch": -125}, 0.2),
+        ({"LeftShoulderPitch": -65, "RightShoulderPitch": -65}, 0.2),
+        ({"LeftShoulderPitch": -125, "RightShoulderPitch": -125}, 0.2),
         (dict(_QT_HOME), 0.5),
     ],
     # Hands out, look left then right — playful curiosity
     "pretend_play": [
-        ({"LeftShoulderPitch": -0.5, "LeftShoulderRoll":  0.8, "LeftElbowRoll": -0.5,
-          "RightShoulderPitch": -0.5, "RightShoulderRoll": -0.8, "RightElbowRoll": 0.5,
-          "HeadPitch": -0.2}, 0.5),
-        ({"HeadYaw":  0.5}, 0.35),
-        ({"HeadYaw": -0.5}, 0.35),
-        ({"HeadYaw": 0.0, "HeadPitch": 0.0}, 0.2),
+        ({"LeftShoulderPitch": -30, "LeftShoulderRoll":  45, "LeftElbowRoll": -30,
+          "RightShoulderPitch": -30, "RightShoulderRoll": -45, "RightElbowRoll": 30,
+          "HeadPitch": -10}, 0.5),
+        ({"HeadYaw":  30}, 0.35),
+        ({"HeadYaw": -30}, 0.35),
+        ({"HeadYaw": 0, "HeadPitch": 0}, 0.2),
         (dict(_QT_HOME), 0.5),
     ],
 }
@@ -700,7 +715,8 @@ class QTBridge(RobotBridge):
         self._version = "qt1"
         self._client = None
         self._pubs: dict = {}               # cached roslibpy.Topic publishers
-        self._joint_positions: dict = {}    # joint_name → current angle from /joints/state
+        self._joint_positions: dict = {}    # joint_name → last commanded angle (degrees)
+        self._joint_names_logged = False    # log joint names only once at startup
 
     # ------------------------------------------------------------------
     # Lifecycle
@@ -716,6 +732,7 @@ class QTBridge(RobotBridge):
     def _on_deactivate(self):
         """Clear publisher cache on deactivation."""
         self._pubs.clear()
+        self._joint_names_logged = False
 
     def connect(self):
         """Open the roslibpy WebSocket connection to QTrobot's rosbridge server."""
@@ -776,14 +793,18 @@ class QTBridge(RobotBridge):
         self._client.get_topics(_log_topics)
         self._client.get_services(_log_services)
 
-        # Subscribe to joint states to track current positions (used as fallback in joint commands)
+        # Subscribe to joint states only to learn the joint names at startup.
+        # We do NOT use the feedback positions as fallback values because the robot
+        # publishes them in radians while our commands are in degrees — mixing units
+        # causes unspecified joints to snap to ~0° on every partial command.
+        # Instead, _pub_joint_trajectory() records what it commanded so fallbacks
+        # always stay in degrees.
         def _on_joint_state(msg):
-            names     = msg.get("name", [])
-            positions = msg.get("position", [])
-            if not self._joint_positions:
-                self.get_logger().info(f"[QtBridge] Joint names on robot: {names}")
-            for name, pos in zip(names, positions):
-                self._joint_positions[name] = pos
+            if not self._joint_names_logged:
+                self._joint_names_logged = True
+                self.get_logger().info(
+                    f"[QtBridge] Joint names on robot: {msg.get('name', [])}"
+                )
         try:
             sub = roslibpy.Topic(
                 self._client, "/qt_robot/joints/state", "sensor_msgs/JointState"
@@ -849,8 +870,14 @@ class QTBridge(RobotBridge):
         topic_name = QT_JOINT_TOPICS[group_key]
         order = QT_JOINT_ORDER[group_key]
         requested = dict(zip(joints, angles))
-        # Fill positional array; unknown joints fall back to current position then 0.0
+        # Unspecified joints fall back to the last value WE commanded (degrees), not the
+        # robot's JointState feedback (which is in radians). Without this, a partial command
+        # like "LeftShoulderRoll:120" would send the other two joints to ~0° (radian values
+        # misread as degrees), causing the arm to jerk unpredictably on every call.
         data = [requested.get(j, self._joint_positions.get(j, 0.0)) for j in order]
+        # Immediately record what we commanded so future fallbacks use degree values.
+        for j, v in zip(order, data):
+            self._joint_positions[j] = v
         key = f"traj_{group_key}"
         if key not in self._pubs:
             t = roslibpy.Topic(self._client, topic_name, "std_msgs/Float64MultiArray")
@@ -969,6 +996,12 @@ class QTBridge(RobotBridge):
                 self.get_logger().info(
                     f"[QtBridge] move: '{raw}' has no QTrobot equivalent — skipped."
                 )
+                return
+            # The mapped name may itself be a custom gesture (e.g. "hoora" → joint sequence)
+            if qt_name in QT_CUSTOM_GESTURES:
+                steps = QT_CUSTOM_GESTURES[qt_name]
+                self.get_logger().info(f"[QtBridge] move (custom gesture via map): {qt_name}")
+                threading.Thread(target=self._do_custom_gesture, args=(steps,), daemon=True).start()
                 return
             # "@" prefix = absolute path (custom package); strip "@", no "QT/" prepend
             name = qt_name[1:] if qt_name.startswith("@") else f"QT/{qt_name}"
