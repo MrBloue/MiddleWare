@@ -873,7 +873,7 @@ class QTBridge(RobotBridge):
         # Unspecified joints fall back to the last value WE commanded (degrees), not the
         # robot's JointState feedback (which is in radians). Without this, a partial command
         # like "LeftShoulderRoll:120" would send the other two joints to ~0° (radian values
-        # misread as degrees), causing the arm to jerk unpredictably on every call.
+        # misread as degrees), causing the arm to wiggle unpredictably on every call.
         data = [requested.get(j, self._joint_positions.get(j, 0.0)) for j in order]
         # Immediately record what we commanded so future fallbacks use degree values.
         for j, v in zip(order, data):
@@ -899,6 +899,24 @@ class QTBridge(RobotBridge):
         "RElbowRoll":     "RightElbowRoll",
         "RElbowYaw":      "RightElbowYaw",
     }
+
+    
+
+    # ------------------------------------------------------------------
+    # speak
+    # ------------------------------------------------------------------
+
+    def do_speak(self, msg: RobotCmd):
+        """Publish speech text to /qt_robot/speech/say via rosbridge."""
+        if not msg.text:
+            return
+        lang = msg.language or "fr-FR"
+        self.get_logger().info(f"[QtBridge] speak [{lang}]: {msg.text}")
+        self._pub_ros1("speech", {"data": msg.text})
+
+    # ------------------------------------------------------------------
+    # move
+    # ------------------------------------------------------------------
 
     def _do_joint_control(self, spec, speed):
         """Parse 'Joint:angle,…' spec and dispatch to the correct joint group topic."""
@@ -935,22 +953,6 @@ class QTBridge(RobotBridge):
                 )
                 self._pub_joint_trajectory(topic_key, joints, angles)
 
-    # ------------------------------------------------------------------
-    # speak
-    # ------------------------------------------------------------------
-
-    def do_speak(self, msg: RobotCmd):
-        """Publish speech text to /qt_robot/speech/say via rosbridge."""
-        if not msg.text:
-            return
-        lang = msg.language or "fr-FR"
-        self.get_logger().info(f"[QtBridge] speak [{lang}]: {msg.text}")
-        self._pub_ros1("speech", {"data": msg.text})
-
-    # ------------------------------------------------------------------
-    # move
-    # ------------------------------------------------------------------
-
     def _do_custom_gesture(self, steps: list):
         """Execute a QT_CUSTOM_GESTURES sequence: send joint positions step by step."""
         for joints, hold in steps:
@@ -965,8 +967,8 @@ class QTBridge(RobotBridge):
                 elif joint.startswith("Right"):
                     right_j.append(joint); right_a.append(angle)
             for key, jl, al in [("head", head_j, head_a),
-                                 ("left", left_j, left_a),
-                                 ("right", right_j, right_a)]:
+                                                                    ("left", left_j, left_a),
+                                                                    ("right", right_j, right_a)]:
                 if jl:
                     self._pub_joint_trajectory(key, jl, al)
             time.sleep(hold)

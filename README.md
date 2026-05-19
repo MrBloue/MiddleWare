@@ -9,13 +9,16 @@ Currently supported: **NAO** (v5/v6, NAOqi ≥ 2.1.4), **Pepper** (v1/v1.8/v2, N
 ## Architecture
 
 ```
-/robot_cmd  →  command_dispatcher  →  /robot_cmd_validated  →  nao_bridge  →  NAO / Pepper robot
-                                                             →  qt_bridge   →  QTrobot
+/robot_cmd  →  command_dispatcher  →  /robot_cmd_validated  →  nao_bridge   →  NAO / Pepper robot
+                                                             →  qt_bridge    →  QTrobot
 
 robot_detector  →  /robot_config  (TRANSIENT_LOCAL, describes the active robot)
+
+nao_sensors  →  sensor/*, sonar/*, battery, audio/*   (NAO / Pepper — polls ALMemory via qi)
+qt_sensor    →  joint_states, motor_states             (QTrobot — bridges ROS1 topics via roslibpy)
 ```
 
-The user always publishes to `/robot_cmd`. The dispatcher validates the command against the active robot config and forwards it. Each bridge translates the universal message into robot-specific calls.
+The user always publishes to `/robot_cmd`. The dispatcher validates the command against the active robot config and forwards it. Each bridge translates the universal message into robot-specific calls. Sensor nodes run independently and publish live robot data regardless of which commands are being sent.
 
 ---
 
@@ -91,6 +94,10 @@ ros2 launch ros2_robot_bridge robot_bridge.launch.py \
 | `naoqi_ssl_cert` | _(empty)_ | CA certificate path for `tcps` connections |
 | `qt_host` | `192.168.100.1` | QTrobot rosbridge IP |
 | `qt_port` | `9090` | QTrobot rosbridge port |
+| `queue_commands` | `false` | Buffer commands for sequential execution |
+| `cmd_timeout_s` | `10.0` | Seconds before a queued command expires |
+| `sensor_poll_hz` | `20.0` | Sensor polling frequency in Hz (NAO/Pepper only) |
+| `sound_sensitivity` | `0.5` | ALSoundDetection sensitivity: `0.0` (deaf) to `1.0` (very sensitive) |
 
 ---
 
@@ -137,7 +144,24 @@ ros2 topic pub --once /robot_cmd ros2_robot_bridge/msg/RobotCmd \
 | `zh-CN` | Chinese |
 
 **NAO/Pepper:** calls `ALTextToSpeech.say()` via qi SDK.  
-**QTrobot:** publishes to `/qt_robot/speech/say` via rosbridge.
+**QTrobot:** publishes to `/qt_robot/speech/say` via rosbridge. Supports **SSML** markup for prosody control (pitch, rate, emphasis, pauses) when the robot's TTS backend is Azure TTS.
+
+**QTrobot SSML examples:**
+```bash
+# Pause and emphasis
+rostopic pub --once /qt_robot/speech/say std_msgs/String \
+    'data: "Attends <break time=\"500ms\"/> maintenant je continue."'
+
+# Slower and higher pitch
+rostopic pub --once /qt_robot/speech/say std_msgs/String \
+    'data: "<prosody rate=\"slow\" pitch=\"+5st\">Je suis heureux !</prosody>"'
+
+# Emphasis level
+rostopic pub --once /qt_robot/speech/say std_msgs/String \
+    'data: "<emphasis level=\"strong\">Excellent</emphasis> travail !"'
+```
+
+> **Bash tip:** Use single quotes `'...'` for the outer shell quoting — the `!` character is then literal and does not trigger bash history expansion.
 
 ---
 
@@ -866,6 +890,24 @@ ros2 topic pub --once /robot_cmd ros2_robot_bridge/msg/RobotCmd \
 
 ---
 
+## Sensor Topics (QTrobot)
+
+`qt_sensor` bridges QTrobot's ROS1 sensor topics into ROS2. All topics are relative to the node namespace (e.g. `qtrobot_1` for IP `…1`).
+
+```bash
+ros2 topic echo /qtrobot_1/joint_states   # arm and head joint positions (radians)
+ros2 topic echo /qtrobot_1/motor_states   # raw motor state JSON (torque, temperature, errors)
+```
+
+| Topic | Type | Description |
+|-------|------|-------------|
+| `joint_states` | `sensor_msgs/JointState` | Joint positions (radians), republished from `/qt_robot/joints/state` |
+| `motor_states` | `std_msgs/String` | Raw motor state as JSON string, from `/qt_robot/motors/states` |
+
+> The `sensor_hz` launch argument caps the joint-state republish rate (default 10 Hz). The robot publishes at ~2 Hz, so any value above 2 effectively forwards all messages.
+
+---
+
 ## NAO / Pepper robot administration
 
 ### Check installed behaviors
@@ -1092,12 +1134,16 @@ This section describes the source code structure of the package: what each file 
 ```
 ros2_robot_bridge/
 ├── ros2_robot_bridge/
-│   ├── base_bridge.py             # Abstract base class (shared ROS2 plumbing)
+│   ├── base_bridge.py             # Abstract base for command bridges (shared ROS2 plumbing)
+│   ├── base_sensor.py             # Abstract base for sensor nodes (connect thread + poll timer)
 │   ├── robot_detector.py          # Configuration publisher
 │   ├── command_dispatcher.py      # Validation & dedup gateway
-│   ├── nao_bridge.py              # NAO / Pepper executor
-│   ├── qt_bridge.py               # QTrobot executor
-│   └── robot_bridge_template.py   # Starting point for new robot adapters
+│   ├── nao_bridge.py              # NAO / Pepper command executor
+│   ├── qt_bridge.py               # QTrobot command executor
+│   ├── nao_sensors.py             # NAO / Pepper sensor publisher (ALMemory polling via qi)
+│   ├── qt_sensor.py               # QTrobot sensor bridge (ROS1 → ROS2 via roslibpy)
+│   ├── robot_bridge_template.py   # Starting point for new robot adapters (command bridge)
+│   └── robot_sensor_template.py   # Starting point for new robot sensor nodes
 ├── msg/
 │   ├── RobotCmd.msg               # Universal command message
 │   └── RobotConfig.msg            # Active robot description
@@ -1204,3 +1250,36 @@ The map is intentionally bidirectional in spirit: it covers both universal names
 Gestures that cannot be triggered via `gesture/play` (root-level behavior scripts) are implemented in `QT_CUSTOM_GESTURES` — a dict of `gesture_name → list[(joint_dict, hold_seconds)]`. `do_move()` checks this dict **before** `QT_MOTION_MAP`, so custom implementations always win.
 
 The `_do_custom_gesture()` method groups joints by name prefix (`Head`, `Left`, `Right`), builds a `Float64MultiArray` in the positional order defined by `QT_JOINT_ORDER`, and publishes to the three joint command topics. Steps are executed sequentially with `time.sleep(hold)` between them; the whole sequence runs in a daemon thread.
+
+---
+
+### base_sensor.py
+
+**Role:** Abstract base class for all sensor nodes, mirroring `base_bridge.py` for the command side.
+
+Provides:
+- `_start_connect()` — spawns a daemon thread that calls `connect()`. Subclasses call this explicitly as the **last line of `__init__`**, after all `declare_parameter()` calls, to avoid a race between the connection thread and parameter declaration.
+- `_start_polling(hz)` — creates a ROS timer that calls `_poll()` at the given rate. Used by polling-style sensors (NAO/Pepper).
+- `destroy_node()` — calls `disconnect()` before the ROS node tears down.
+
+Subclasses implement `connect()` (required), `disconnect()` (optional cleanup), and `_poll()` (optional, for timer-based sensors).
+
+---
+
+### nao_sensors.py
+
+**Role:** Polls NAO / Pepper sensor data from ALMemory and publishes it as ROS2 topics.
+
+Inherits `SensorBase`. Uses the ALMemory `getListData()` batch API to minimize Wi-Fi round-trips. Sensors polled: touch buttons (chest, 3 head zones, foot/base bumpers), sonar distances, battery charge, sound detection, and sound localization.
+
+Pepper is auto-detected at connect time (via the `robot_type` parameter or `ALSystem.robotName()`) and switches to platform-specific bumper keys (`Platform/FrontLeft`, `Platform/FrontRight`, `Platform/Back`).
+
+Sound detection uses a timestamp-comparison strategy to distinguish new events from stale ALMemory state (ALMemory never clears the key after a detection — comparing timestamps avoids permanently reporting `True`).
+
+---
+
+### qt_sensor.py
+
+**Role:** Bridges QTrobot ROS1 sensor topics into ROS2 via roslibpy WebSocket subscriptions.
+
+Inherits `SensorBase` using the event-driven pattern (Pattern B): `connect()` calls `client.run()` (blocking) as its last statement; roslibpy calls `_on_connected()` once the WebSocket is ready. Topics bridged: `/qt_robot/joints/state` → `joint_states` (`sensor_msgs/JointState`) and `/qt_robot/motors/states` → `motor_states` (`std_msgs/String`, raw JSON). The `sensor_hz` parameter throttles the joint-state republish rate to avoid flooding ROS2 subscribers.

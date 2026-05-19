@@ -381,13 +381,6 @@ GESTURES = {
         (["LHand"], [0.1], 0.08, 0.0),
     ],
     "yay": [
-        (["LHand", "RHand"], [1.0, 1.0], 0.3, 0.4),
-        (["LHand", "RHand"], [0.4, 0.4], 0.15, 0.7),
-        (["LHand", "RHand"], [1.0, 1.0], 0.15, 0.4),
-        (["LHand", "RHand"], [0.4, 0.4], 0.15, 0.7),
-        (["LHand", "RHand"], [1.0, 1.0], 0.15, 0.4),
-        (["LHand", "RHand"], [0.4, 0.4], 0.15, 0.7),
-        (["LHand", "RHand"], [1.0, 1.0], 0.15, 0.3),
         (["LShoulderPitch", "LShoulderRoll", "LElbowRoll", "LElbowYaw", "LHand",
           "RShoulderPitch", "RShoulderRoll", "RElbowRoll", "RElbowYaw", "RHand"],
          [-1.5, 0.3, -0.05, -1.57, 1.0,
