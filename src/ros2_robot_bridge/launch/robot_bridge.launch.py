@@ -1,7 +1,7 @@
 """
 robot_bridge.launch.py
 ======================
-Launches all four nodes of the ros2_robot_bridge package.
+Launches all nodes of the ros2_robot_bridge package.
 
 Usage examples
 --------------
@@ -24,6 +24,10 @@ Usage examples
   # With command queuing enabled
   ros2 launch ros2_robot_bridge robot_bridge.launch.py \\
       robot_type:=nao robot_version:=v6 queue_commands:=true
+
+  # With WOZ web interface (open http://<this-machine>:5555 in a browser)
+  ros2 launch ros2_robot_bridge robot_bridge.launch.py \\
+      robot_type:=qtrobot robot_version:=qt1 qt_host:=192.168.100.1 woz:=true
 """
 
 from launch import LaunchDescription
@@ -36,6 +40,7 @@ def _make_nodes(context, *args, **kwargs):
     robot_type    = LaunchConfiguration("robot_type").perform(context)
     naoqi_host    = LaunchConfiguration("naoqi_host").perform(context)
     qt_host       = LaunchConfiguration("qt_host").perform(context)
+    woz_enabled   = LaunchConfiguration("woz").perform(context).lower() == "true"
 
     # Derive namespace from the last octet of the relevant host IP
     host = qt_host if robot_type == "qtrobot" else naoqi_host
@@ -123,7 +128,23 @@ def _make_nodes(context, *args, **kwargs):
             }],
         )
 
-    return common_nodes + [sensor_node]
+    nodes = common_nodes + [sensor_node]
+
+    if woz_enabled:
+        nodes.append(Node(
+            package="ros2_robot_bridge",
+            executable="woz_node.py",
+            name="woz_node",
+            namespace=ns,
+            output="screen",
+            parameters=[{
+                "woz_host": LaunchConfiguration("woz_host"),
+                "woz_port": LaunchConfiguration("woz_port"),
+                "language": LaunchConfiguration("woz_language"),
+            }],
+        ))
+
+    return nodes
 
 
 def generate_launch_description() -> LaunchDescription:
@@ -152,5 +173,13 @@ def generate_launch_description() -> LaunchDescription:
                               description="Sensor polling frequency in Hz (buttons, sonar, battery, audio)"),
         DeclareLaunchArgument("sound_sensitivity", default_value="0.5",
                               description="ALSoundDetection sensitivity 0.0 (deaf) to 1.0 (very sensitive)"),
+        DeclareLaunchArgument("woz",          default_value="false",
+                              description="Start the WOZ web interface (http://<host>:woz_port)"),
+        DeclareLaunchArgument("woz_host",     default_value="0.0.0.0",
+                              description="WOZ Flask bind address"),
+        DeclareLaunchArgument("woz_port",     default_value="5555",
+                              description="WOZ Flask port"),
+        DeclareLaunchArgument("woz_language", default_value="fr-FR",
+                              description="TTS language code for WOZ speech commands"),
     ]
     return LaunchDescription(args + [OpaqueFunction(function=_make_nodes)])

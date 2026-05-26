@@ -1058,14 +1058,19 @@ class QTBridge(RobotBridge):
             return
 
         if msg.emotion:
-            emotion_key = msg.emotion.lower().strip()
-            if emotion_key not in QT_EMOTION_MAP:
-                self.get_logger().warning(
-                    f"[QtBridge] unknown emotion '{emotion_key}'. "
-                    f"Valid: {', '.join(QT_EMOTION_MAP.keys())}"
-                )
-                return
-            emotion_path = f"QT/{QT_EMOTION_MAP[emotion_key]}"
+            raw_emotion = msg.emotion.strip()
+            if '/' in raw_emotion:
+                # Raw QT emotion path (e.g. 'QT/showing_smile' from WOZ interface) — use as-is
+                emotion_path = raw_emotion
+            else:
+                emotion_key = raw_emotion.lower()
+                if emotion_key not in QT_EMOTION_MAP:
+                    self.get_logger().warning(
+                        f"[QtBridge] unknown emotion '{emotion_key}'. "
+                        f"Valid: {', '.join(QT_EMOTION_MAP.keys())}"
+                    )
+                    return
+                emotion_path = f"QT/{QT_EMOTION_MAP[emotion_key]}"
             duration_ms = msg.duration_ms
             self.get_logger().info(
                 f"[QtBridge] display emotion: {emotion_path}"
