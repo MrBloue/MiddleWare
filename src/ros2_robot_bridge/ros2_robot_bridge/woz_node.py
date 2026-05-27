@@ -24,7 +24,9 @@ Parameters:
   woz_port    int     5555        — Flask port
   language    string  "fr-FR"     — TTS language code for speak commands
 """
+import math
 import os
+import re
 import threading
 
 import rclpy
@@ -115,7 +117,8 @@ class WozNode(Node):
         if _TEMPLATE_DIR and os.path.isdir(_TEMPLATE_DIR):
             kwargs['template_folder'] = _TEMPLATE_DIR
         if _STATIC_DIR and os.path.isdir(_STATIC_DIR):
-            kwargs['static_folder'] = _STATIC_DIR
+            kwargs['static_folder']    = _STATIC_DIR
+            kwargs['static_url_path']  = '/static'
         app = Flask(__name__, **kwargs)
         app.secret_key = 'woz'
         _register_routes(app, self)
@@ -172,6 +175,10 @@ class WozNode(Node):
             txt = txt.replace('adult_name', self._adult_name)
             if txt.startswith('~'):
                 txt = txt[1:]
+            # Strip QTrobot-specific sound tags (#YAWN01#, #LAUGH01#, …) that NAO TTS speaks literally
+            txt = re.sub(r'#[A-Z0-9]+#', '', txt)
+            # Strip QTrobot-specific prosody tags (\sel=alt=p±N\) that NAO TTS speaks literally
+            txt = re.sub(r'\\sel=[^\\]+\\', '', txt).strip()
             self._pub_cmd(action='speak', text=txt, language=self._lang)
 
         # Emotion (facial expression on QTrobot, LEDs on NAO/Pepper)
@@ -184,23 +191,28 @@ class WozNode(Node):
         if gesture and not has_joints:
             self._pub_cmd(action='move', motion_name=gesture)
 
-        # Head: [yaw_deg, pitch_deg]
+        # Head: [yaw_deg, pitch_deg] — converted to radians for NAO
         if 'h' in beh:
             yaw, pitch = beh['h']
             self._pub_cmd(action='move',
-                          motion_name=f'HeadYaw:{yaw},HeadPitch:{pitch}')
+                          motion_name=f'HeadYaw:{math.radians(yaw):.4f},HeadPitch:{math.radians(pitch):.4f}')
 
-        # Left arm: [ShoulderPitch, ShoulderRoll, ElbowRoll] degrees
+        # Left arm: [ShoulderPitch, ShoulderRoll, ElbowRoll] degrees → radians
+        # NAO uses abbreviated joint names: LShoulderPitch, not LeftShoulderPitch
         if 'la' in beh:
             p, r, e = beh['la']
             self._pub_cmd(action='move',
-                          motion_name=f'LeftShoulderPitch:{p},LeftShoulderRoll:{r},LeftElbowRoll:{e}')
+                          motion_name=f'LShoulderPitch:{math.radians(p):.4f},'
+                                      f'LShoulderRoll:{math.radians(r):.4f},'
+                                      f'LElbowRoll:{math.radians(e):.4f}')
 
-        # Right arm: [ShoulderPitch, ShoulderRoll, ElbowRoll] degrees
+        # Right arm: [ShoulderPitch, ShoulderRoll, ElbowRoll] degrees → radians
         if 'ra' in beh:
             p, r, e = beh['ra']
             self._pub_cmd(action='move',
-                          motion_name=f'RightShoulderPitch:{p},RightShoulderRoll:{r},RightElbowRoll:{e}')
+                          motion_name=f'RShoulderPitch:{math.radians(p):.4f},'
+                                      f'RShoulderRoll:{math.radians(r):.4f},'
+                                      f'RElbowRoll:{math.radians(e):.4f}')
 
     def _pub_cmd(self, **kwargs):
         msg = RobotCmd()

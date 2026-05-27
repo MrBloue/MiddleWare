@@ -98,6 +98,87 @@ ros2 launch ros2_robot_bridge robot_bridge.launch.py \
 | `cmd_timeout_s` | `10.0` | Seconds before a queued command expires |
 | `sensor_poll_hz` | `20.0` | Sensor polling frequency in Hz (NAO/Pepper only) |
 | `sound_sensitivity` | `0.5` | ALSoundDetection sensitivity: `0.0` (deaf) to `1.0` (very sensitive) |
+| `woz` | `false` | Enable the Wizard-of-Oz web interface |
+| `woz_host` | `0.0.0.0` | WOZ Flask bind address |
+| `woz_port` | `5555` | WOZ Flask port |
+| `language` | `fr-FR` | TTS language for WOZ speech commands |
+
+---
+
+## Wizard-of-Oz (WOZ) Web Interface
+
+The WOZ interface lets an operator remote-control the robot from a browser during a session with a child. It runs as a Flask web server embedded in a ROS2 node and publishes `RobotCmd` messages to `/robot_cmd`. Commands are routed to whichever robot is currently connected — the interface itself is robot-agnostic.
+
+### Enable
+
+Pass `woz:=true` to any launch command:
+
+```bash
+# NAO
+ros2 launch ros2_robot_bridge robot_bridge.launch.py \
+    robot_type:=nao robot_version:=v5 naoqi_host:=192.168.24.59 woz:=true
+
+# QTrobot
+ros2 launch ros2_robot_bridge robot_bridge.launch.py \
+    robot_type:=qtrobot robot_version:=qt2 qt_host:=192.168.100.1 woz:=true
+```
+
+Then open `http://<bridge-machine-ip>:5555` in a browser on the same network.
+
+### Login
+
+Enter the therapist's name, the child's first name, and last name. These names are substituted into speech templates at runtime (`child_name` and `adult_name` placeholders in `woz_states.py`). The robot greets the child on submission.
+
+### Pages
+
+| Tab | Description |
+|-----|-------------|
+| **Scénario et Jeux** | Scenario launch and explanation buttons grouped by game type |
+| **Réactions** | Quick-reaction buttons (emotions, feedback, questions) for live improvisation |
+| **Maison** | Alternate activity set (symbolic play, mime, manual activities, daily life) |
+| **RobotAct** | Theatre/performance page with expression and posture buttons, plus a walk joystick and a head-look joystick |
+
+All category labels in the UI use the generic term **"Le robot"** and are not tied to any specific robot model.
+
+### State machine
+
+Each button sends a state name to the `/woz` endpoint. The state machine in `woz_states.py` defines behaviors for each state:
+
+| Key | Meaning | Sent as |
+|-----|---------|---------|
+| `s` | Speech text | `RobotCmd(action='speak')` |
+| `e` | Emotion / animation name | `RobotCmd(action='display', emotion=...)` |
+| `g` | Gesture name | `RobotCmd(action='move', motion_name=...)` |
+| `h` | `[yaw_deg, pitch_deg]` head angles | `RobotCmd(action='move', motion_name='HeadYaw:r,HeadPitch:r')` |
+| `la` | `[pitch, roll, elbow]` left arm degrees | `RobotCmd(action='move', motion_name='LShoulderPitch:r,...')` |
+| `ra` | `[pitch, roll, elbow]` right arm degrees | `RobotCmd(action='move', motion_name='RShoulderPitch:r,...')` |
+
+Angles are stored in degrees in `woz_states.py` and converted to radians before publishing.
+
+States can chain via time-based auto-transitions: `('time', seconds, next_state)`. Pressing any button cancels the pending timer and jumps directly to the chosen state.
+
+### TTS preprocessing
+
+The state machine was originally authored for QTrobot and contains robot-specific TTS markup. `woz_node.py` strips these before publishing so NAO's Nuance TTS does not speak them literally:
+
+- Sound tags `#YAWN01#`, `#LAUGH01#`, etc. — removed
+- Prosody tags `\sel=alt=p-70\` etc. — removed
+
+NAO-compatible tags that pass through unchanged: `\pau=N\` (pause ms), `\rspd=N\` (speech rate), `\vct=N\` (voice category).
+
+> **Note:** This stripping is always applied regardless of the connected robot. On a QTrobot session the prosody tags would be meaningful — this is a known limitation.
+
+### Gesture and emotion mapping (NAO / Pepper)
+
+`qt/...` and `QT/...` gesture paths from `woz_states.py` are translated to NAO behavior paths via `QT_TO_NAO_BEHAVIOR` in `nao_bridge.py`. Unrecognized paths are logged at DEBUG level and skipped silently.
+
+### Postures (RobotAct tab)
+
+| Button | State | Action |
+|--------|-------|--------|
+| Debout | `standup` | `Stand` posture |
+| LSD | `LSD` | `Sit` posture |
+| LSU | `LSU` | `Stand` posture |
 
 ---
 
@@ -1142,11 +1223,25 @@ ros2_robot_bridge/
 │   ├── qt_bridge.py               # QTrobot command executor
 │   ├── nao_sensors.py             # NAO / Pepper sensor publisher (ALMemory polling via qi)
 │   ├── qt_sensor.py               # QTrobot sensor bridge (ROS1 → ROS2 via roslibpy)
+│   ├── woz_node.py                # Wizard-of-Oz Flask web interface node
+│   ├── woz_states.py              # WOZ state machine (behaviors and auto-transitions)
 │   ├── robot_bridge_template.py   # Starting point for new robot adapters (command bridge)
 │   └── robot_sensor_template.py   # Starting point for new robot sensor nodes
 ├── msg/
 │   ├── RobotCmd.msg               # Universal command message
 │   └── RobotConfig.msg            # Active robot description
+├── woz_templates/                 # Flask HTML templates for the WOZ interface
+│   ├── login.html
+│   ├── scenarios.html
+│   ├── reactions.html
+│   ├── theatre.html
+│   └── maison.html
+├── woz_static/                    # JS/CSS/image assets served by Flask
+│   ├── woz.js / woz.css           # Core UI logic and styles
+│   ├── scenarios.js               # Button definitions for the Scenarios tab
+│   ├── reactions.js               # Button definitions for the Réactions tab
+│   ├── theatre.js                 # Button definitions for the RobotAct tab
+│   └── maison.js                  # Button definitions for the Maison tab
 └── launch/
     └── robot_bridge.launch.py     # Single launch file for all robots
 ```

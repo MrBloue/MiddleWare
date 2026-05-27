@@ -1,18 +1,18 @@
 
 var groupsList = [
-	["static/images/face/theatre_identifie_sentiments.png", "QT identifie les sentiments"],
-	["static/images/face/theatre_emotions.png", "QT exprime des émotions"],
-	["static/images/face/theatre_parle_et_reagit.png", "QT parle et réagit"],
+	["static/images/face/theatre_identifie_sentiments.png", "Le robot identifie les sentiments"],
+	["static/images/face/theatre_emotions.png", "Le robot exprime des émotions"],
+	["static/images/face/theatre_parle_et_reagit.png", "Le robot parle et réagit"],
 	
 	// ["",""],
-	// ["static/images/face/reacjeux2.png", "QT commente les jeux"],
-	// ["static/images/face/ouch.png", "QT bugue et est malade"],
-	// ["static/images/face/ghghgh.png", "QT encourage et réagit à un échec"],
+	// ["static/images/face/reacjeux2.png", "Le robot commente les jeux"],
+	// ["static/images/face/ouch.png", "Le robot bugue et est malade"],
+	// ["static/images/face/ghghgh.png", "Le robot encourage et réagit à un échec"],
 	// ["static/images/face/defend2.png", "Humour"],
-	["static/images/face/ah.png", "QT dans son environnement"],
-	["static/images/face/stars.png", "QT félicite et applaudit"],	
-	["static/images/face/theatre_qt_et_aveugle.png", "QT et l'aveugle"],
-	["static/images/face/happy.png", "QT taquine et plaisante"],	
+	["static/images/face/ah.png", "Le robot dans son environnement"],
+	["static/images/face/stars.png", "Le robot félicite et applaudit"],	
+	["static/images/face/theatre_qt_et_aveugle.png", "Le robot et l'aveugle"],
+	["static/images/face/happy.png", "Le robot taquine et plaisante"],	
 ]
 
 var infoList = [
@@ -39,22 +39,22 @@ var infoList = [
 ]
 
 var textList = [
-	["", "QT identifie les sentiments"],
-	["", "QT exprime des émotions"],
-	["", "QT parle et réagit"],
+	["", "Le robot identifie les sentiments"],
+	["", "Le robot exprime des émotions"],
+	["", "Le robot parle et réagit"],
 	
 	// ["", ""],
 	// ["", ""],
 	// ["",""],
-	// ["", "QT écrit"],
-	// ["", "QT commente les jeux"],
-	// ["", "QT bugue et est malade"],
+	// ["", "Le robot écrit"],
+	// ["", "Le robot commente les jeux"],
+	// ["", "Le robot bugue et est malade"],
 	
-	// ["", "QT encourage et réagit à un échec"],
-	["", "QT dans son environnement"],
-	["", "QT félicite et applaudit"],
-	["", "QT et l'aveugle"],
-	["", "QT taquine et plaisante"],
+	// ["", "Le robot encourage et réagit à un échec"],
+	["", "Le robot dans son environnement"],
+	["", "Le robot félicite et applaudit"],
+	["", "Le robot et l'aveugle"],
+	["", "Le robot taquine et plaisante"],
 	// ["", "Humour"],
 	["", ""],
 	["", ""],

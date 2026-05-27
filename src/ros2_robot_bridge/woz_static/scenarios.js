@@ -7,10 +7,10 @@ var groupsList = [
 	["static/images/scenario/apprenti.png","Jeu \"Apprenti\""],
 	["static/images/scenario/g2270.png", "Jeu \"Jus\""],//à modifier
 	["static/images/scenario/mongolf.png", "Jeu \"Poursuite\""],
-	["static/images/scenario/start.png", "QT lance la séance"],
-	["static/images/scenario/explain.png", "QT explique son scénario"],
-	["static/images/scenario/rythme3.png", "QT gère le rythme au sein de la séance"],
-	["static/images/scenario/end.png","QT conclue la séance"]
+	["static/images/scenario/start.png", "Le robot lance la séance"],
+	["static/images/scenario/explain.png", "Le robot explique son scénario"],
+	["static/images/scenario/rythme3.png", "Le robot gère le rythme au sein de la séance"],
+	["static/images/scenario/end.png","Le robot conclue la séance"]
 ]
 
 var infoList = [
@@ -37,10 +37,10 @@ var textList = [
 	["","Jeu \"Apprenti\""],
 	["", "Jeu \"Jus\""],
 	["","Jeu \"Poursuite\""],
-	["", "QT lance la séance"],
-	["", "QT explique son scénario"],
-	["", "QT gère le rythme au sein de la séance"],
-	["","QT conclue la séance"]
+	["", "Le robot lance la séance"],
+	["", "Le robot explique son scénario"],
+	["", "Le robot gère le rythme au sein de la séance"],
+	["","Le robot conclue la séance"]
 ]
 
 var commandsList = [

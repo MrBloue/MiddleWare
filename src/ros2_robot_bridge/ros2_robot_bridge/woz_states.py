@@ -270,7 +270,7 @@ states = { 'begin': ( {}, [('time', 1, 'choice')]),
                 'bravo': ( {'e':'QT/happy', 'g':'QT/happy', 's': random.choice(["Felicitations !", "Bravo! ", "Bien joué  child_name", "Félicitations child_name"]) }, [('time', 0.1, 'choice')]),
                 'je_suis_fort': ( {'e':'QT/one_eye_wink', 'g':'QT/hips', 's': random.choice(["je suis trop fort", "je suis très fier de moi!", "J'ai trop bien réussi!"]) }, [('time', 1, 'choice')]),
                 'cest_bien': ( {'e':'QT/showing_smile', 'g':'QT/happy', 's': random.choice(["Super!", "C'est bien !", "C'est chouette!"]) }, [('time', 1, 'choice')]),
-                'tu_es_fort': ( {'e':'QT/happy', 'g':'T/handclap', 's': random.choice(["trop fort?", "Tu as trop bien réussi child_name ", "Tu as trop bien fait!"]) }, [('time', 1, 'choice')]),
+                'tu_es_fort': ( {'e':'QT/happy', 'g':'QT/handclap', 's': random.choice(["trop fort?", "Tu as trop bien réussi child_name ", "Tu as trop bien fait!"]) }, [('time', 1, 'choice')]),
                 'nous_sommes_fort': ( {'e':'QT/happy', 'g':'QT/happy', 's': random.choice(["On est trop forts", "On est super forts!", "On a trop bien réussi!"]) }, [('time', 1, 'choice')]),
                 'fier_de_toi': ( {'e':'QT/happy', 'g':'', 's':"Je suis fier de toi!"}, [('time', 1, 'choice')]),
                 'applique': ( {'e':'QT/one_eye_wink', 'g':'QT/thanks', 's': random.choice(["tu travaille très bien","tu t'appliques très bien!", "tu est bien appliqué"]) }, [('time', 1, 'choice')]),
@@ -290,7 +290,7 @@ states = { 'begin': ( {}, [('time', 1, 'choice')]),
                 #comportement de scenario 
                 'pression_lance': ( {'e':'QT/talking', 'g':'QT/show_tablet', 's': random.choice(["Clique sur le jeu qui s'appelle sous-marin", "Démarre le jeu sous-marin"]) }, [('time', 1, 'choice')]),
                 'pression_expli': ( {'e':'QT/talkinglong', 'g':'QT/bored', 's': "Je navigue en sous-marin. Appuie ton stylo plus ou moins fort pour m'aider à piloter. Attention aux obstacles. Tu peux aller chercher les étoiles en bonus." }, [('time', 1, 'choice')]),
-                'pression_complet': ( {'e':'"QT/talkinglong', 'g':'QT/bored_long', 's': "\sel=alt=p-70\Rappelle-toi \pau=130\ C'est la pression sur le stylo qui pilote. Plus tu appuies fort, plus mon sous-marin descend. Si tu lâches le stylo, mon sous-marin s'arrête. Évite les pics et les rochers." }, [('time', 1, 'choice')]),
+                'pression_complet': ( {'e':'QT/talkinglong', 'g':'QT/bored_long', 's': "Rappelle-toi, c'est la pression sur le stylo qui pilote. Plus tu appuies fort, plus mon sous-marin descend. Si tu lâches le stylo, mon sous-marin s'arrête. Évite les pics et les rochers." }, [('time', 1, 'choice')]),
                 'archeo_lance': ( {'e':'QT/talking', 'g':'QT/show_tablet', 's': random.choice(["Lance le jeu archéologue", "Clique sur le jeu qui s'appelle archéologue"]) }, [('time', 1, 'choice')]),
                 'archeo_expli': ( {'e':'QT/talking', 'g':'QT/bored', 's': "Dans ce jeu, j'ai enterré un trésor dans le sol. Appuie le stylo sur la tablette. Déplace-le pour creuser dans le sol et trouver le trésor" }, [('time', 1, 'choice')]),
                 'archeo_complet': ( {'e':'QT/talkinglong', 'g':'QT/bored_long', 's': "Attention ! \pau=80\ Si tu appuie trop fort, tu risque de casser le trésor. Une fois que tu as trouvé tout, n'oublie pas de valider." }, [('time', 1, 'choice')]),
@@ -330,7 +330,7 @@ states = { 'begin': ( {}, [('time', 1, 'choice')]),
                 'ca_va': ( {'e':'QT/showing_smile', 'g':'', 's': random.choice(["Comment vas-tu?", "Ça va?", "Tu vas bien?" ]) }, [('time', 1, 'choice')]),
                 'bonjour': ( {'e':'QT/showing_smile', 'g':'QT/hi', 's': random.choice(["Bonjour, child_name" , "Coucou? child_name" ]) }, [('time', 1, 'choice')]),
                 
-                'je_mappelle_qt': ( {'e':'QT/talkinglongadapted', 'g':'"QT/hi', 's':"Bonjour, je m'appelle kyuti. Et toi, comment tu t'appelles?" }, [('time', 1, 'choice')]),
+                'je_mappelle_qt': ( {'e':'QT/talkinglongadapted', 'g':'QT/hi', 's':"Bonjour, je m'appelle kyuti. Et toi, comment tu t'appelles?" }, [('time', 1, 'choice')]),
                 'tu_veux_maider': ( {'e':'QT/talkinglongrepeat', 'g':'QT/begin',  's':"Je suis content de te rencontrer. J'ai besoin de ton aide pour mieux écrire, car je ne suis pas très fort. Est-ce que tu es d'accord pour m'aider? On s'améliorera ensemble!" }, [('time', 1, 'choice')]),
                 'tu_maides_encore': ( {'e':'QT/talkinglong', 'g':'QT/rappel', 's':"Comme je ne sais pas très bien écrire, tu avais décidé de m'aider pour qu'on devienne meilleurs ensemble. On continue?"}, [('time', 1, 'choice')]),
                 'adieu': ( {'e':'QT/dernieradieu', 'g':'QT/adieu', 's':"On a terminé notre dernière séance. Merci beaucoup. J'ai fais beaucoup de progrès, et je me suis bien amusé. J'espère que toi aussi. " }, [('time', 1, 'choice')]),
@@ -522,5 +522,10 @@ states = { 'begin': ( {}, [('time', 1, 'choice')]),
                 '_fatigue':( {'e':'QT/yawn', 'g':'QT/thanks', 's': "#YAWN01# Je suis fatigué"}, [('time', 1, 'choice')]),
                 'confusion':( {'e':'QT/confused', 'g':'QT/touch-head-back', 's': random.choice(["Je ne comprends pas!", "J'ai du mal à comprendre!"])}, [('time', 1, 'choice')]),
     
+
+                # Posture shortcuts (theatre.js buttons)
+                'standup': ( {'g': 'Stand'}, [('time', 1, 'choice')]),
+                'LSD':     ( {'g': 'Sit'},   [('time', 1, 'choice')]),
+                'LSU':     ( {'g': 'Stand'}, [('time', 1, 'choice')]),
 
                 'end': ((), [('time', 0.1, 'end')]) }

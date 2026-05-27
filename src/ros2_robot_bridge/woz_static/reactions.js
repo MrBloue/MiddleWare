@@ -1,16 +1,16 @@
 var groupsList = [
-	["static/images/face/identemotion2.png", "QT identifie les sentiments"],
-	["static/images/face/parleadulte.png", "QT interagit avec l'adulte"],
-	["static/images/face/questionne.png", "QT questionne et fait reflechir"],
+	["static/images/face/identemotion2.png", "Le robot identifie les sentiments"],
+	["static/images/face/parleadulte.png", "Le robot interagit avec l'adulte"],
+	["static/images/face/questionne.png", "Le robot questionne et fait reflechir"],
 	["",""],
-	["static/images/face/ecrit.png", "QT écrit"],
-	["static/images/face/reacjeux2.png", "QT commente les jeux"],
-	["static/images/face/ouch.png", "QT bugue et est malade"],
-	["static/images/face/defend2.png", "QT se défend"],
-	["static/images/face/ghghgh.png", "QT encourage et réagit à un échec"],
-	["static/images/face/stars.png", "QT félicite et applaudit"],	
-	["static/images/face/wink.png", "QT taquine et plaisante"],	
-	["static/images/face/happy.png", "QT papote"],
+	["static/images/face/ecrit.png", "Le robot écrit"],
+	["static/images/face/reacjeux2.png", "Le robot commente les jeux"],
+	["static/images/face/ouch.png", "Le robot bugue et est malade"],
+	["static/images/face/defend2.png", "Le robot se défend"],
+	["static/images/face/ghghgh.png", "Le robot encourage et réagit à un échec"],
+	["static/images/face/stars.png", "Le robot félicite et applaudit"],
+	["static/images/face/wink.png", "Le robot taquine et plaisante"],
+	["static/images/face/happy.png", "Le robot papote"],
 ]
 
 var infoList = [
@@ -29,18 +29,18 @@ var infoList = [
 ]
 
 var textList = [
-	["", "QT identifie les sentiments"],
-	["", "QT interagit avec l'adulte"],
-	["", "QT questionne et fait reflechir"],
+	["", "Le robot identifie les sentiments"],
+	["", "Le robot interagit avec l'adulte"],
+	["", "Le robot questionne et fait reflechir"],
 	["",""],
-	["", "QT écrit"],
-	["", "QT commente les jeux"],
-	["", "QT bugue et est malade"],
-	["", "QT se défend"],
-	["", "QT encourage et réagit à un échec"],
-	["", "QT félicite et applaudit"],
-	["", "QT taquine et plaisante"],
-	["", "QT papote"]
+	["", "Le robot écrit"],
+	["", "Le robot commente les jeux"],
+	["", "Le robot bugue et est malade"],
+	["", "Le robot se défend"],
+	["", "Le robot encourage et réagit à un échec"],
+	["", "Le robot félicite et applaudit"],
+	["", "Le robot taquine et plaisante"],
+	["", "Le robot papote"]
 ]
 
 var commandsList = [
@@ -70,7 +70,7 @@ var commandsList = [
 					["Pourquoi ça n'a pas marché?","pas_marche",0],
 					["Pourquoi?","pourquoi",0]]	],
 	["",		[	["","",0] ]		],
-	["#C4BAD2",	[	["QT écrit","ecrit",0],
+	["#C4BAD2",	[	["Le robot écrit","ecrit",0],
 					["Sens des lettres?","senslettre",0],
 					["Lettres fermées?", "fermelettre",0],
 					["Début des lettres?","endroitlettre",0],

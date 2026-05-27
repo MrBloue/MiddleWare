@@ -1030,6 +1030,7 @@ BEHAVIORS = {
 
 # QTrobot dance names → BEHAVIORS keys
 QT_TO_NAO_BEHAVIOR = {
+    # Short alias form (legacy)
     "dance":           "funny_dancer",
     "dance_funny":     "funny_dancer",
     "air_guitar":      "air_guitar",
@@ -1043,6 +1044,32 @@ QT_TO_NAO_BEHAVIOR = {
     "winner":          "winner",
     "hysterical":      "hysterical",
     "ecstatic":        "ecstatic",
+    # Full QTrobot path form (from WOZ state table)
+    "qt/happy":                        "happy_anim",
+    "qt/laugh":                        "laugh_anim",
+    "qt/yes":                          "yes_anim",
+    "qt/no":                           "shake_head",
+    "qt/so":                           "i_dont_know",
+    "qt/so_what":                      "i_dont_know",
+    "qt/curious":                      "puzzled",
+    "qt/handclap":                     "applause",
+    "qt/thanks":                       "bow",
+    "qt/bye":                          "wave",
+    "qt/strong":                       "show_muscles",
+    "qt/challenge":                    "enthusiastic_g",
+    "qt/bored":                        "bored_anim",
+    "qt/angry":                        "angry_anim",
+    "qt/yawn":                         "relaxation",
+    "qt/stretch":                      "stretch_wait",
+    "qt/peekaboo":                     "hide_eyes",
+    "qt/head_scratch":                 "scratch_head",
+    "qt/touch-head-back":              "scratch_head",
+    "qt/monkey":                       "funny_dancer",
+    "qt/hips":                         "funny_dancer",
+    "qt/swipe_right":                  "far",
+    "qt/show_tablet":                  "give",
+    "qt/imitation/head-right-left":    "shake_head",
+    "qt/imitation/hands-on-hip":       "show_muscles",
 }
 
 # Walking commands → (linear.x, linear.y, angular.z) at full speed
@@ -1409,10 +1436,13 @@ class NaoBridge(RobotBridge):
             except Exception as exc:
                 self.get_logger().error(f"[NaoBridge] joint parse error: {exc}")
         else:
-            self.get_logger().warning(
-                f"[NaoBridge] Unknown motion_name '{name}'. "
-                "Use a posture keyword (Stand/Sit/…), a gesture name, or 'Joint:angle,…' format."
-            )
+            if name.lower().startswith("qt/"):
+                self.get_logger().debug(f"[NaoBridge] QT-only animation skipped on NAO: '{name}'")
+            else:
+                self.get_logger().warning(
+                    f"[NaoBridge] Unknown motion_name '{name}'. "
+                    "Use a posture keyword (Stand/Sit/…), a gesture name, or 'Joint:angle,…' format."
+                )
 
     def _run_behavior(self, behavior_path, stop_event):
         """Run an installed NAOqi behavior; warn if not found on this robot."""
