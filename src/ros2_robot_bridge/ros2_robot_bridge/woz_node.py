@@ -31,7 +31,7 @@ import threading
 
 import rclpy
 from rclpy.node import Node
-from ros2_robot_bridge.msg import RobotCmd
+from ros2_robot_bridge.msg import RobotCmd, RobotConfig
 
 try:
     from flask import Flask, jsonify, render_template, request, redirect, session
@@ -84,15 +84,22 @@ class WozNode(Node):
         self.declare_parameter('woz_host', '0.0.0.0')
         self.declare_parameter('woz_port', 5555)
         self.declare_parameter('language', 'fr-FR')
+        self.declare_parameter('robot_name', '')
 
         self._pub  = self.create_publisher(RobotCmd, '/robot_cmd', 10)
         self._lang = self.get_parameter('language').value
 
         self._child_name  = ''
         self._adult_name  = ''
+        self._robot_name  = self.get_parameter('robot_name').value  # Option B: explicit name
+        self._robot_type  = ''                                       # Option A: from /robot_config
         self._state       = 'begin'
         self._auto_timer  = None
         self._lock        = threading.Lock()
+
+        from rclpy.qos import QoSProfile, DurabilityPolicy
+        _latched = QoSProfile(depth=1, durability=DurabilityPolicy.TRANSIENT_LOCAL)
+        self.create_subscription(RobotConfig, '/robot_config', self._on_robot_config, _latched)
 
         if not _HAS_FLASK:
             self.get_logger().error('[WOZ] flask not installed — node inactive (pip install flask)')
@@ -157,6 +164,13 @@ class WozNode(Node):
                 self._auto_timer.start()
                 break
 
+    def _on_robot_config(self, msg: RobotConfig):
+        self._robot_type = msg.robot_type or ''
+
+    def _resolved_robot_name(self) -> str:
+        """Option B: explicit robot_name param; Option A fallback: robot_type from /robot_config."""
+        return self._robot_name or self._robot_type or 'le robot'
+
     def on_button(self, button_name):
         """Operator pressed a WOZ button — jump to that state."""
         if self._auto_timer:
@@ -173,6 +187,7 @@ class WozNode(Node):
         if txt:
             txt = txt.replace('child_name', self._child_name)
             txt = txt.replace('adult_name', self._adult_name)
+            txt = txt.replace('robot_name', self._resolved_robot_name())
             if txt.startswith('~'):
                 txt = txt[1:]
             # Strip QTrobot-specific sound tags (#YAWN01#, #LAUGH01#, …) that NAO TTS speaks literally

@@ -330,7 +330,7 @@ states = { 'begin': ( {}, [('time', 1, 'choice')]),
                 'ca_va': ( {'e':'QT/showing_smile', 'g':'', 's': random.choice(["Comment vas-tu?", "Ça va?", "Tu vas bien?" ]) }, [('time', 1, 'choice')]),
                 'bonjour': ( {'e':'QT/showing_smile', 'g':'QT/hi', 's': random.choice(["Bonjour, child_name" , "Coucou? child_name" ]) }, [('time', 1, 'choice')]),
                 
-                'je_mappelle_qt': ( {'e':'QT/talkinglongadapted', 'g':'QT/hi', 's':"Bonjour, je m'appelle kyuti. Et toi, comment tu t'appelles?" }, [('time', 1, 'choice')]),
+                'je_mappelle_qt': ( {'e':'QT/talkinglongadapted', 'g':'premiere_rencontre', 's':"Bonjour, je m'appelle robot_name. Et toi, comment tu t'appelles?" }, [('time', 1, 'choice')]),
                 'tu_veux_maider': ( {'e':'QT/talkinglongrepeat', 'g':'QT/begin',  's':"Je suis content de te rencontrer. J'ai besoin de ton aide pour mieux écrire, car je ne suis pas très fort. Est-ce que tu es d'accord pour m'aider? On s'améliorera ensemble!" }, [('time', 1, 'choice')]),
                 'tu_maides_encore': ( {'e':'QT/talkinglong', 'g':'QT/rappel', 's':"Comme je ne sais pas très bien écrire, tu avais décidé de m'aider pour qu'on devienne meilleurs ensemble. On continue?"}, [('time', 1, 'choice')]),
                 'adieu': ( {'e':'QT/dernieradieu', 'g':'QT/adieu', 's':"On a terminé notre dernière séance. Merci beaucoup. J'ai fais beaucoup de progrès, et je me suis bien amusé. J'espère que toi aussi. " }, [('time', 1, 'choice')]),
@@ -352,7 +352,7 @@ states = { 'begin': ( {}, [('time', 1, 'choice')]),
                 
                 # maison 
                        # premiere utimisation 
-                '_salut': ( {'e':'QT/happy', 'g':'QT/hi', 's': random.choice(["Salut ! Je m’appelle kyouti, enchanté de te rencontrer","Salut ! Je m’appelle kyouti, ravi de faire ta connaissance."])}, [('time', 1, 'choice')]),  
+                ‘_salut’: ( {‘e’:’QT/happy’, ‘g’:’premiere_rencontre’, ‘s’: random.choice(["Salut ! Je m’appelle robot_name, enchanté de te rencontrer","Salut ! Je m’appelle robot_name, ravi de faire ta connaissance."])}, [(‘time’, 1, ‘choice’)]),  
                 '_comment_t_appeler': ( {'e':'', 'g':'QT/imitation/hands-on-hip', 's': random.choice(["~Comment tu t'appel ?","~Quel est ton prénom ? "])}, [('time', 1, 'choice')]),  
                 '_nom_parents' : ( {'e':'', 'g':'', 's': "~Comment s’appellent tes parents ?"}, [('time', 1, 'choice')]),  
                 '_aujourdhui': ( {'e':'', 'g':'QT/show_tablet', 's': "~ On va commencer par faire connaissance et puis on jouera ensemble régulièrement ! Tu pourras me dire ce que tu penses et ce que tu ressens, avec des mots, des dessins ou par le jeu. D’accord ? \\pau=1000\\ C’est parti ! "}, [('time', 11, 'choice')]),  
@@ -524,8 +524,8 @@ states = { 'begin': ( {}, [('time', 1, 'choice')]),
     
 
                 # Posture shortcuts (theatre.js buttons)
-                'standup': ( {'g': 'Stand', 'spd': 0.8}, [('time', 0.01, 'choice')]),
-                'LSD':     ( {'g': 'Sit',   'spd': 0.8}, [('time', 0.01, 'choice')]),
-                'LSU':     ( {'g': 'Stand', 'spd': 0.8}, [('time', 0.01, 'choice')]),
+                'standup': ( {'g': 'Stand', 'spd': 0.6}, [('time', 0.01, 'choice')]),
+                'LSD':     ( {'g': 'Sit',   'spd': 0.6}, [('time', 0.01, 'choice')]),
+                'LSU':     ( {'g': 'Stand', 'spd': 0.6}, [('time', 0.01, 'choice')]),
 
                 'end': ((), [('time', 0.1, 'end')]) }
