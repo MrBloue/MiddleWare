@@ -189,7 +189,8 @@ class WozNode(Node):
         # Gesture — only when no joint-level control in this state
         gesture = beh.get('g', '')
         if gesture and not has_joints:
-            self._pub_cmd(action='move', motion_name=gesture)
+            spd = beh.get('spd', 0.0)
+            self._pub_cmd(action='move', motion_name=gesture, speed=spd)
 
         # Head: [yaw_deg, pitch_deg] — converted to radians for NAO
         if 'h' in beh:
