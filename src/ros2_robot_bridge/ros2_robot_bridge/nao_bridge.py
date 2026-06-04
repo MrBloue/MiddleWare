@@ -174,6 +174,8 @@ QT_TO_NAO_MOTION = {
     "very_sad":           None,
     "very_sad2":          None,
     "tired":              None,
+    # --- QTrobot full-path forms missing from QT_TO_NAO_BEHAVIOR ---
+    "qt/neutral":         None,
 }
 
 # Universal LED group name → NAOqi ALLeds group name
@@ -1070,6 +1072,14 @@ QT_TO_NAO_BEHAVIOR = {
     "qt/show_tablet":                  "give",
     "qt/imitation/head-right-left":    "shake_head",
     "qt/imitation/hands-on-hip":       "show_muscles",
+    "qt/imitation/nodding-yes":        "nod",
+    # --- QTrobot full-path forms not yet mapped ---
+    "qt/hi":                           "wave",
+    "qt/surprise":                     "yay",
+    "qt/touch-head":                   "pat_pat",
+    "qt/emotions/sad":                 "sad",
+    "qt/kiss":                         "love_you",
+    "qt/face":                         "hide_eyes",
 }
 
 # Walking commands → (linear.x, linear.y, angular.z) at full speed
