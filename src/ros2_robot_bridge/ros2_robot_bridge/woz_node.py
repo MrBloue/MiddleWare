@@ -194,25 +194,47 @@ class WozNode(Node):
         host_param  = 'qt_host'         if qt else 'naoqi_host'
         det         = f'{ns}/robot_detector'
 
-        subprocess.run(
-            ['ros2', 'param', 'set', bridge_node, host_param, robot_ip],
-            capture_output=True, timeout=10,
-        )
-        # Temporarily set an invalid type so the bridge deactivates and
-        # reactivates, picking up the new host param in _on_activate().
-        subprocess.run(
-            ['ros2', 'param', 'set', det, 'robot_type', '_reset'],
-            capture_output=True, timeout=10,
-        )
-        time.sleep(2.5)  # wait for robot_detector's 2-second poll timer to fire
-        subprocess.run(
-            ['ros2', 'param', 'set', det, 'robot_version', robot_version],
-            capture_output=True, timeout=10,
-        )
-        subprocess.run(
-            ['ros2', 'param', 'set', det, 'robot_type', robot_type],
-            capture_output=True, timeout=10,
-        )
+        def _rset(node, param, value):
+            r = subprocess.run(
+                ['ros2', 'param', 'set', node, param, value],
+                capture_output=True, text=True, timeout=10,
+            )
+            if r.returncode != 0:
+                self.get_logger().warn(
+                    f'[WOZ] param set {node} {param}={value} rc={r.returncode}: '
+                    f'{(r.stderr or r.stdout).strip()}'
+                )
+            return r.returncode == 0
+
+        # Update host param — nao_bridge parameter callback triggers immediate reconnect
+        _rset(bridge_node, host_param, robot_ip)
+
+        # Force deactivate/activate cycle so _on_activate re-reads the updated host
+        _rset(det, 'robot_type', '_reset')
+
+        # Wait up to 4 s for robot_detector's timer to publish the _reset
+        deadline = time.monotonic() + 4.0
+        while time.monotonic() < deadline:
+            if self._robot_type not in (robot_type, ''):
+                break
+            time.sleep(0.25)
+
+        _rset(det, 'robot_version', robot_version)
+        _rset(det, 'robot_type', robot_type)
+
+        # Wait up to 6 s for the bridge to re-activate and publish the restored config
+        deadline = time.monotonic() + 6.0
+        while time.monotonic() < deadline:
+            if self._robot_type == robot_type:
+                break
+            time.sleep(0.25)
+
+        if self._robot_type != robot_type:
+            self.get_logger().warn(
+                f'[WOZ] Bridge did not re-activate within timeout '
+                f'(current type={self._robot_type!r})'
+            )
+
         self.get_logger().info(
             f'[WOZ] Reconnected: {robot_type} {robot_version} @ {robot_ip}'
         )

@@ -1129,10 +1129,25 @@ class NaoBridge(RobotBridge):
         self._speech_pub = self.create_publisher(String, "/speech", 10)
         self._joint_pub = self.create_publisher(JointAnglesWithSpeed, "/joint_angles", 10)
         self._cmd_vel_pub = self.create_publisher(Twist, "/cmd_vel", 10)
+        self.add_on_set_parameters_callback(self._on_param_change)
 
     # ------------------------------------------------------------------
     # Lifecycle
     # ------------------------------------------------------------------
+
+    def _on_param_change(self, params):
+        """Reconnect immediately when naoqi_host is changed at runtime."""
+        from rcl_interfaces.msg import SetParametersResult
+        for p in params:
+            if p.name == 'naoqi_host' and self._active:
+                new_host = p.value.string_value
+                if new_host and new_host != self._host:
+                    self._host = new_host
+                    self.get_logger().info(
+                        f'[NaoBridge] naoqi_host → {new_host}, reconnecting'
+                    )
+                    threading.Thread(target=self._reconnect, daemon=True).start()
+        return SetParametersResult(successful=True)
 
     def _on_activate(self, msg: RobotConfig):
         """Read NAOqi connection parameters from the launch configuration."""
