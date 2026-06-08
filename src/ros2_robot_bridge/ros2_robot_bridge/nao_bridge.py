@@ -1140,7 +1140,7 @@ class NaoBridge(RobotBridge):
         from rcl_interfaces.msg import SetParametersResult
         for p in params:
             if p.name == 'naoqi_host' and self._active:
-                new_host = p.value.string_value
+                new_host = p.value  # rclpy Parameter.value is already a Python str
                 if new_host and new_host != self._host:
                     self._host = new_host
                     self.get_logger().info(
