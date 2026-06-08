@@ -298,9 +298,7 @@ def _register_routes(app: 'Flask', node: WozNode):
 
     @app.route('/')
     def index():
-        if not _session_connected():
-            return redirect('/connect')
-        return redirect('/login')
+        return redirect('/connect')
 
     @app.route('/connect', methods=['GET', 'POST'])
     def connect_robot():
@@ -325,13 +323,15 @@ def _register_routes(app: 'Flask', node: WozNode):
                                    robot_type=robot_type,
                                    robot_version=robot_version,
                                    robot_ip=robot_ip,
-                                   error=error_msg)
+                                   error=error_msg,
+                                   already_connected=False)
         return render_template(
             'connect.html',
             robot_type=session.get('robot_type_ui', node._robot_type),
             robot_version=session.get('robot_version_ui', node._robot_version),
             robot_ip=session.get('robot_ip', ''),
             error='',
+            already_connected=_session_connected(),
         )
 
     @app.route('/login', methods=['GET', 'POST'])

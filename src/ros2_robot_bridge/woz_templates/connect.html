@@ -37,6 +37,12 @@
             font-size: 0.95em;
             border-radius: 4px;
         }
+        .continue-link {
+            display: block;
+            margin-top: 1.2em;
+            font-size: 0.9em;
+            color: #0000cc;
+        }
     </style>
 </head>
 
@@ -80,6 +86,10 @@
 
                     <input type="submit" id="connect-btn" value="Se connecter">
                     <p id="loading-msg">Connexion en cours, veuillez patienter…</p>
+
+                    {% if already_connected %}
+                    <a href="/login" class="continue-link">Continuer sans changer →</a>
+                    {% endif %}
 
                 </form>
             </div>
