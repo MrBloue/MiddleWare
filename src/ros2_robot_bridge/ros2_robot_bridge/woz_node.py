@@ -27,6 +27,7 @@ Parameters:
 import math
 import os
 import re
+import socket
 import subprocess
 import threading
 import time
@@ -176,13 +177,17 @@ class WozNode(Node):
         return self._robot_name or self._robot_type or 'le robot'
 
     def _apply_connection(self, robot_type: str, robot_version: str, robot_ip: str):
-        """Update bridge host parameter and force a reconnect cycle via robot_detector.
+        """Check reachability, then update bridge params and force a reconnect cycle.
 
-        Uses ros2 param set so the bridge re-reads the new host in _on_activate().
-        The reconnect is triggered by briefly setting an invalid robot_type on
-        robot_detector (causes bridge to deactivate), then restoring the real type
-        (causes bridge to activate and connect to the new IP).
+        Returns (True, '') on success or (False, error_message) on failure.
         """
+        port = 9090 if robot_type == 'qtrobot' else 9559
+        try:
+            with socket.create_connection((robot_ip, port), timeout=4):
+                pass
+        except OSError as exc:
+            return False, f"Robot non joignable à {robot_ip}:{port} — {exc}"
+
         ns = self.get_namespace()
         qt = (robot_type == 'qtrobot')
         bridge_node = f'{ns}/qt_bridge' if qt else f'{ns}/nao_bridge'
@@ -211,6 +216,7 @@ class WozNode(Node):
         self.get_logger().info(
             f'[WOZ] Reconnected: {robot_type} {robot_version} @ {robot_ip}'
         )
+        return True, ''
 
     def on_button(self, button_name):
         """Operator pressed a WOZ button — jump to that state."""
@@ -306,22 +312,26 @@ def _register_routes(app: 'Flask', node: WozNode):
                 return render_template('connect.html',
                                        robot_type=robot_type,
                                        robot_version=robot_version,
-                                       robot_ip='')
-            session['connected']      = True
-            session['robot_type_ui']  = robot_type
-            session['robot_version_ui'] = robot_version
-            session['robot_ip']       = robot_ip
-            threading.Thread(
-                target=node._apply_connection,
-                args=(robot_type, robot_version, robot_ip),
-                daemon=True,
-            ).start()
-            return redirect('/login')
+                                       robot_ip='',
+                                       error="Veuillez entrer l'adresse IP du robot.")
+            success, error_msg = node._apply_connection(robot_type, robot_version, robot_ip)
+            if success:
+                session['connected']        = True
+                session['robot_type_ui']    = robot_type
+                session['robot_version_ui'] = robot_version
+                session['robot_ip']         = robot_ip
+                return redirect('/login')
+            return render_template('connect.html',
+                                   robot_type=robot_type,
+                                   robot_version=robot_version,
+                                   robot_ip=robot_ip,
+                                   error=error_msg)
         return render_template(
             'connect.html',
             robot_type=session.get('robot_type_ui', node._robot_type),
             robot_version=session.get('robot_version_ui', node._robot_version),
             robot_ip=session.get('robot_ip', ''),
+            error='',
         )
 
     @app.route('/login', methods=['GET', 'POST'])
