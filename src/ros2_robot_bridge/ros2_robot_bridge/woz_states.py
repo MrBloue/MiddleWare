@@ -524,8 +524,8 @@ states = { 'begin': ( {}, [('time', 1, 'choice')]),
     
 
                 # Posture shortcuts (theatre.js buttons)
-                'standup': ( {'g': 'Stand', 'spd': 0.8}, [('time', 0.01, 'choice')]),
-                'LSD':     ( {'g': 'Sit',   'spd': 0.8}, [('time', 0.01, 'choice')]),
-                'LSU':     ( {'g': 'Stand', 'spd': 0.8}, [('time', 0.01, 'choice')]),
+                'standup': ( {'g': 'Stand', 'spd': 0.6}, [('time', 0.01, 'choice')]),
+                'LSD':     ( {'g': 'Sit',   'spd': 0.6}, [('time', 0.01, 'choice')]),
+                'LSU':     ( {'g': 'Stand', 'spd': 0.6}, [('time', 0.01, 'choice')]),
 
                 'end': ((), [('time', 0.1, 'end')]) }
