@@ -152,6 +152,7 @@ Each button sends a state name to the `/woz` endpoint. The state machine in `woz
 | `h` | `[yaw_deg, pitch_deg]` head angles | `RobotCmd(action='move', motion_name='HeadYaw:r,HeadPitch:r')` |
 | `la` | `[pitch, roll, elbow]` left arm degrees | `RobotCmd(action='move', motion_name='LShoulderPitch:r,...')` |
 | `ra` | `[pitch, roll, elbow]` right arm degrees | `RobotCmd(action='move', motion_name='RShoulderPitch:r,...')` |
+| `spd` | Posture transition speed 0.0–1.0 | `RobotCmd(speed=...)` — applies to posture changes (`Stand`, `Sit`, …) |
 
 Angles are stored in degrees in `woz_states.py` and converted to radians before publishing.
 
@@ -170,7 +171,44 @@ NAO-compatible tags that pass through unchanged: `\pau=N\` (pause ms), `\rspd=N\
 
 ### Gesture and emotion mapping (NAO / Pepper)
 
-`qt/...` and `QT/...` gesture paths from `woz_states.py` are translated to NAO behavior paths via `QT_TO_NAO_BEHAVIOR` in `nao_bridge.py`. Unrecognized paths are logged at DEBUG level and skipped silently.
+`qt/...` and `QT/...` gesture paths from `woz_states.py` are translated to NAO equivalents via two dicts in `nao_bridge.py`:
+
+- **`QT_TO_NAO_BEHAVIOR`** — maps to a `BEHAVIORS` or `GESTURES` key for execution.
+- **`QT_TO_NAO_MOTION`** — maps to a `GESTURES` key, or `None` to silently skip (used for QT-specific paths that have no meaningful NAO equivalent).
+
+Unrecognized paths are logged at DEBUG level and silently dropped.
+
+Currently mapped QT gesture paths (all WOZ-relevant entries):
+
+| QT path | NAO equivalent |
+|---------|----------------|
+| `qt/hi` | `wave` |
+| `qt/bye` | `wave` |
+| `qt/happy` | `happy_anim` |
+| `qt/laugh` | `laugh_anim` |
+| `qt/yes` | `yes_anim` |
+| `qt/no` | `shake_head` |
+| `qt/kiss` | `love_you` |
+| `qt/face` | `hide_eyes` |
+| `qt/peekaboo` | `hide_eyes` |
+| `qt/surprise` | `yay` |
+| `qt/touch-head` | `pat_pat` |
+| `qt/touch-head-back` | `scratch_head` |
+| `qt/head_scratch` | `scratch_head` |
+| `qt/emotions/sad` | `sad` |
+| `qt/bored` | `bored_anim` |
+| `qt/angry` | `angry_anim` |
+| `qt/curious` | `puzzled` |
+| `qt/handclap` | `applause` |
+| `qt/thanks` | `bow` |
+| `qt/strong` | `show_muscles` |
+| `qt/stretch` | `stretch_wait` |
+| `qt/yawn` | `relaxation` |
+| `qt/show_tablet` | `give` |
+| `qt/imitation/nodding-yes` | `nod` |
+| `qt/imitation/head-right-left` | `shake_head` |
+| `qt/imitation/hands-on-hip` | `show_muscles` |
+| `qt/neutral` | _(skipped — no equivalent on NAO)_ |
 
 ### Postures (RobotAct tab)
 
