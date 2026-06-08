@@ -35,6 +35,7 @@ import time
 import rclpy
 from rclpy.node import Node
 from ros2_robot_bridge.msg import RobotCmd, RobotConfig
+from std_msgs.msg import String as _RosString
 
 try:
     from flask import Flask, jsonify, render_template, request, redirect, session
@@ -104,6 +105,8 @@ class WozNode(Node):
         from rclpy.qos import QoSProfile, DurabilityPolicy
         _latched = QoSProfile(depth=1, durability=DurabilityPolicy.TRANSIENT_LOCAL)
         self.create_subscription(RobotConfig, '/robot_config', self._on_robot_config, _latched)
+        self._reconnect_pub = self.create_publisher(_RosString, 'nao_reconnect', 10)
+        self._robot_config_event = threading.Event()
 
         if not _HAS_FLASK:
             self.get_logger().error('[WOZ] flask not installed — node inactive (pip install flask)')
@@ -171,6 +174,7 @@ class WozNode(Node):
     def _on_robot_config(self, msg: RobotConfig):
         self._robot_type    = msg.robot_type or ''
         self._robot_version = msg.robot_version or ''
+        self._robot_config_event.set()
 
     def _resolved_robot_name(self) -> str:
         """Option B: explicit robot_name param; Option A fallback: robot_type from /robot_config."""
@@ -206,33 +210,38 @@ class WozNode(Node):
                 )
             return r.returncode == 0
 
-        # Update host param — nao_bridge parameter callback triggers immediate reconnect
-        _rset(bridge_node, host_param, robot_ip)
+        def _wait_for_type(wanted, timeout_sec):
+            """Return when self._robot_type == wanted or timeout expires."""
+            deadline = time.monotonic() + timeout_sec
+            while time.monotonic() < deadline:
+                if self._robot_type == wanted:
+                    return True
+                # Block until _on_robot_config fires (or 0.3 s, whichever comes first)
+                self._robot_config_event.wait(timeout=0.3)
+                self._robot_config_event.clear()
+            return self._robot_type == wanted
 
-        # Force deactivate/activate cycle so _on_activate re-reads the updated host
+        # Publish to nao_reconnect topic — nao_bridge updates its parameter from its own
+        # spin thread, bypassing the subprocess DDS-discovery issue with ros2 param set.
+        self._reconnect_pub.publish(_RosString(data=f'{host_param}:{robot_ip}'))
+        time.sleep(0.4)  # give nao_bridge's spin thread time to call set_parameters
+
+        # Force deactivate/activate cycle via robot_detector so _on_activate re-reads host
         _rset(det, 'robot_type', '_reset')
 
-        # Wait up to 4 s for robot_detector's timer to publish the _reset
-        deadline = time.monotonic() + 4.0
-        while time.monotonic() < deadline:
-            if self._robot_type not in (robot_type, ''):
-                break
-            time.sleep(0.25)
+        # Wait up to 5 s for robot_detector's timer to publish the _reset
+        if not _wait_for_type('_reset', 5.0):
+            self.get_logger().warn(
+                f'[WOZ] _reset not detected (current={self._robot_type!r}), continuing'
+            )
 
         _rset(det, 'robot_version', robot_version)
         _rset(det, 'robot_type', robot_type)
 
-        # Wait up to 6 s for the bridge to re-activate and publish the restored config
-        deadline = time.monotonic() + 6.0
-        while time.monotonic() < deadline:
-            if self._robot_type == robot_type:
-                break
-            time.sleep(0.25)
-
-        if self._robot_type != robot_type:
+        # Wait up to 7 s for the bridge to re-activate with the restored type
+        if not _wait_for_type(robot_type, 7.0):
             self.get_logger().warn(
-                f'[WOZ] Bridge did not re-activate within timeout '
-                f'(current type={self._robot_type!r})'
+                f'[WOZ] Bridge did not re-activate (current={self._robot_type!r})'
             )
 
         self.get_logger().info(

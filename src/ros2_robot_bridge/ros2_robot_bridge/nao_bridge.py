@@ -1129,11 +1129,25 @@ class NaoBridge(RobotBridge):
         self._speech_pub = self.create_publisher(String, "/speech", 10)
         self._joint_pub = self.create_publisher(JointAnglesWithSpeed, "/joint_angles", 10)
         self._cmd_vel_pub = self.create_publisher(Twist, "/cmd_vel", 10)
+        self.create_subscription(String, 'nao_reconnect', self._on_reconnect_cmd, 10)
         self.add_on_set_parameters_callback(self._on_param_change)
 
     # ------------------------------------------------------------------
     # Lifecycle
     # ------------------------------------------------------------------
+
+    def _on_reconnect_cmd(self, msg: String):
+        """Update naoqi_host at runtime via the nao_reconnect topic.
+
+        woz_node publishes here to avoid subprocess DDS discovery issues.
+        Message format: 'naoqi_host:<ip>'
+        """
+        import rclpy.parameter as rp
+        key, _, value = msg.data.partition(':')
+        if key == 'naoqi_host' and value:
+            self.set_parameters([
+                rp.Parameter('naoqi_host', rp.Parameter.Type.STRING, value)
+            ])
 
     def _on_param_change(self, params):
         """Reconnect immediately when naoqi_host is changed at runtime."""
