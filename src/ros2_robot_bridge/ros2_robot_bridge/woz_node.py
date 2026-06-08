@@ -27,7 +27,9 @@ Parameters:
 import math
 import os
 import re
+import subprocess
 import threading
+import time
 
 import rclpy
 from rclpy.node import Node
@@ -89,11 +91,12 @@ class WozNode(Node):
         self._pub  = self.create_publisher(RobotCmd, '/robot_cmd', 10)
         self._lang = self.get_parameter('language').value
 
-        self._child_name  = ''
-        self._adult_name  = ''
-        self._robot_name  = self.get_parameter('robot_name').value  # Option B: explicit name
-        self._robot_type  = ''                                       # Option A: from /robot_config
-        self._state       = 'begin'
+        self._child_name    = ''
+        self._adult_name    = ''
+        self._robot_name    = self.get_parameter('robot_name').value  # Option B: explicit name
+        self._robot_type    = ''                                       # Option A: from /robot_config
+        self._robot_version = ''
+        self._state         = 'begin'
         self._auto_timer  = None
         self._lock        = threading.Lock()
 
@@ -165,11 +168,49 @@ class WozNode(Node):
                 break
 
     def _on_robot_config(self, msg: RobotConfig):
-        self._robot_type = msg.robot_type or ''
+        self._robot_type    = msg.robot_type or ''
+        self._robot_version = msg.robot_version or ''
 
     def _resolved_robot_name(self) -> str:
         """Option B: explicit robot_name param; Option A fallback: robot_type from /robot_config."""
         return self._robot_name or self._robot_type or 'le robot'
+
+    def _apply_connection(self, robot_type: str, robot_version: str, robot_ip: str):
+        """Update bridge host parameter and force a reconnect cycle via robot_detector.
+
+        Uses ros2 param set so the bridge re-reads the new host in _on_activate().
+        The reconnect is triggered by briefly setting an invalid robot_type on
+        robot_detector (causes bridge to deactivate), then restoring the real type
+        (causes bridge to activate and connect to the new IP).
+        """
+        ns = self.get_namespace()
+        qt = (robot_type == 'qtrobot')
+        bridge_node = f'{ns}/qt_bridge' if qt else f'{ns}/nao_bridge'
+        host_param  = 'qt_host'         if qt else 'naoqi_host'
+        det         = f'{ns}/robot_detector'
+
+        subprocess.run(
+            ['ros2', 'param', 'set', bridge_node, host_param, robot_ip],
+            capture_output=True, timeout=10,
+        )
+        # Temporarily set an invalid type so the bridge deactivates and
+        # reactivates, picking up the new host param in _on_activate().
+        subprocess.run(
+            ['ros2', 'param', 'set', det, 'robot_type', '_reset'],
+            capture_output=True, timeout=10,
+        )
+        time.sleep(2.5)  # wait for robot_detector's 2-second poll timer to fire
+        subprocess.run(
+            ['ros2', 'param', 'set', det, 'robot_version', robot_version],
+            capture_output=True, timeout=10,
+        )
+        subprocess.run(
+            ['ros2', 'param', 'set', det, 'robot_type', robot_type],
+            capture_output=True, timeout=10,
+        )
+        self.get_logger().info(
+            f'[WOZ] Reconnected: {robot_type} {robot_version} @ {robot_ip}'
+        )
 
     def on_button(self, button_name):
         """Operator pressed a WOZ button — jump to that state."""
@@ -241,15 +282,52 @@ class WozNode(Node):
 
 def _register_routes(app: 'Flask', node: WozNode):
 
+    def _session_connected():
+        return bool(session.get('connected'))
+
     def _session_ok():
-        return (session.get('user_name') and session.get('user_surname'))
+        return (_session_connected() and
+                bool(session.get('user_name')) and
+                bool(session.get('user_surname')))
 
     @app.route('/')
     def index():
+        if not _session_connected():
+            return redirect('/connect')
         return redirect('/login')
+
+    @app.route('/connect', methods=['GET', 'POST'])
+    def connect_robot():
+        if request.method == 'POST':
+            robot_type    = request.form.get('robot_type', 'nao')
+            robot_version = request.form.get('robot_version', '')
+            robot_ip      = request.form.get('robot_ip', '').strip()
+            if not robot_ip:
+                return render_template('connect.html',
+                                       robot_type=robot_type,
+                                       robot_version=robot_version,
+                                       robot_ip='')
+            session['connected']      = True
+            session['robot_type_ui']  = robot_type
+            session['robot_version_ui'] = robot_version
+            session['robot_ip']       = robot_ip
+            threading.Thread(
+                target=node._apply_connection,
+                args=(robot_type, robot_version, robot_ip),
+                daemon=True,
+            ).start()
+            return redirect('/login')
+        return render_template(
+            'connect.html',
+            robot_type=session.get('robot_type_ui', node._robot_type),
+            robot_version=session.get('robot_version_ui', node._robot_version),
+            robot_ip=session.get('robot_ip', ''),
+        )
 
     @app.route('/login', methods=['GET', 'POST'])
     def login():
+        if not _session_connected():
+            return redirect('/connect')
         if request.method == 'POST':
             session['user_name']    = request.form.get('fname', '')
             session['user_surname'] = request.form.get('lname', '')
