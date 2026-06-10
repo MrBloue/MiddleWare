@@ -111,19 +111,34 @@ The WOZ interface lets an operator remote-control the robot from a browser durin
 
 ### Enable
 
-Pass `woz:=true` to any launch command:
+Pass `woz:=true` to any launch command. Robot connection details are optional at launch — they can be set (or changed) from the browser via the connect page:
 
 ```bash
-# NAO
+# Launch with defaults — configure the robot from the browser
+ros2 launch ros2_robot_bridge robot_bridge.launch.py woz:=true
+
+# Or pre-configure everything at launch
 ros2 launch ros2_robot_bridge robot_bridge.launch.py \
     robot_type:=nao robot_version:=v5 naoqi_host:=192.168.24.59 woz:=true
-
-# QTrobot
-ros2 launch ros2_robot_bridge robot_bridge.launch.py \
-    robot_type:=qtrobot robot_version:=qt2 qt_host:=192.168.100.1 woz:=true
 ```
 
 Then open `http://<bridge-machine-ip>:5555` in a browser on the same network.
+
+### Connect page
+
+The browser always lands on `/connect` first. Fill in:
+
+- **Type** — `nao`, `pepper`, or `qtrobot`
+- **Version** — version choices update automatically based on type
+- **IP address** — the robot's IP on your network
+
+On submit the WOZ:
+1. Verifies the robot is reachable on its expected port (9559 for NAO/Pepper, 9090 for QTrobot).
+2. Publishes the new host to the `nao_reconnect` topic — `nao_bridge` reconnects immediately without restarting.
+3. Publishes the new type+version to the `robot_reconfig` topic — `robot_detector` updates its config and republishes `robot_config`.
+4. Waits up to 8 s for `command_dispatcher` to confirm the new robot is ready, then redirects to the login page.
+
+If the robot is already connected, a **"Continuer sans changer"** link skips the form.
 
 ### Login
 
@@ -1060,9 +1075,13 @@ ssh nao@<NAO_IP> "naoqi --version 2>/dev/null | head -3"
 | `/robot_cmd` | `RobotCmd` | **Entry point** — send all commands here |
 | `/robot_cmd_validated` | `RobotCmd` | Internal — validated commands to bridges |
 | `/robot_config` | `RobotConfig` | Active robot type/version (TRANSIENT_LOCAL) |
+| `nao_reconnect` | `std_msgs/String` | Internal — woz_node publishes `naoqi_host:<ip>` to reconnect nao_bridge at runtime without restarting |
+| `robot_reconfig` | `std_msgs/String` | Internal — woz_node publishes `robot_type:robot_version` to update robot_detector at runtime |
 | `/speech` | `std_msgs/String` | NAO/Pepper speech fallback (when qi not available) |
 | `/joint_angles` | `JointAnglesWithSpeed` | NAO/Pepper joint fallback (when qi not available) |
 | `/cmd_vel` | `geometry_msgs/Twist` | Walking fallback (when qi not available) |
+
+> **Note:** `nao_reconnect` and `robot_reconfig` are relative topics (namespaced). They let the WOZ connect page switch robots at runtime using ROS2 topic messages instead of `ros2 param set` subprocesses, which are unreliable under DDS discovery constraints.
 
 ---
 
@@ -1292,6 +1311,8 @@ Reads two launch parameters (`robot_type`, `robot_version`), validates them agai
 
 The node re-reads parameters every 2 seconds but only publishes when something actually changes — allowing runtime reconfiguration without flooding the bus.
 
+The node also subscribes to the `robot_reconfig` topic (format: `robot_type:robot_version`). When a message arrives it calls `set_parameters()` internally and immediately republishes — this is how the WOZ connect page switches robot type and version at runtime without restarting any node or using `ros2 param set` subprocesses.
+
 **Key data:** `VALID_VERSIONS` dict — the authoritative list of robot types and versions the system recognises.
 
 ---
@@ -1319,6 +1340,8 @@ The dispatcher is intentionally **robot-agnostic** — it knows nothing about NA
 On receiving an active `RobotConfig`, the node opens a `qi.Session` in a background thread and acquires proxies for five services: `ALRobotPosture`, `ALLeds`, `ALMotion`, `ALTextToSpeech`, and `ALBehaviorManager`. If the `qi` SDK is not installed the node falls back to publishing on ROS topics (`/speech`, `/joint_angles`, `/cmd_vel`).
 
 A 60-second keepalive timer calls `ALTextToSpeech.getLanguage()` to prevent the NAOqi TCP connection from closing after long idle periods. If the ping fails, a reconnect thread retries `_connect_qi` up to 5 times with exponential backoff (5 s, 10 s, 15 s, 20 s, 25 s). A `threading.Lock` ensures at most one reconnect thread runs at a time.
+
+The node subscribes to the `nao_reconnect` topic (format: `naoqi_host:<ip>`). When a message arrives it calls `set_parameters([Parameter('naoqi_host', ...)])` from the spin thread, which both updates the parameter store and triggers the `_on_param_change` callback. That callback updates `self._host` and immediately starts a `_reconnect()` thread — so the bridge switches to the new robot IP without any deactivate/reactivate cycle.
 
 #### Command routing in `_do_move`
 
