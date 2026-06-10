@@ -28,7 +28,6 @@ import math
 import os
 import re
 import socket
-import subprocess
 import threading
 import time
 
@@ -104,8 +103,9 @@ class WozNode(Node):
 
         from rclpy.qos import QoSProfile, DurabilityPolicy
         _latched = QoSProfile(depth=1, durability=DurabilityPolicy.TRANSIENT_LOCAL)
-        self.create_subscription(RobotConfig, '/robot_config', self._on_robot_config, _latched)
+        self.create_subscription(RobotConfig, 'robot_config', self._on_robot_config, _latched)
         self._reconnect_pub = self.create_publisher(_RosString, 'nao_reconnect', 10)
+        self._reconfig_pub  = self.create_publisher(_RosString, 'robot_reconfig', 10)
         self._robot_config_event = threading.Event()
 
         if not _HAS_FLASK:
@@ -181,7 +181,7 @@ class WozNode(Node):
         return self._robot_name or self._robot_type or 'le robot'
 
     def _apply_connection(self, robot_type: str, robot_version: str, robot_ip: str):
-        """Check reachability, then update bridge params and force a reconnect cycle.
+        """Check reachability, then update bridge host and robot_detector config via topics.
 
         Returns (True, '') on success or (False, error_message) on failure.
         """
@@ -192,23 +192,8 @@ class WozNode(Node):
         except OSError as exc:
             return False, f"Robot non joignable à {robot_ip}:{port} — {exc}"
 
-        ns = self.get_namespace()
         qt = (robot_type == 'qtrobot')
-        bridge_node = f'{ns}/qt_bridge' if qt else f'{ns}/nao_bridge'
-        host_param  = 'qt_host'         if qt else 'naoqi_host'
-        det         = f'{ns}/robot_detector'
-
-        def _rset(node, param, value):
-            r = subprocess.run(
-                ['ros2', 'param', 'set', node, param, value],
-                capture_output=True, text=True, timeout=10,
-            )
-            if r.returncode != 0:
-                self.get_logger().warn(
-                    f'[WOZ] param set {node} {param}={value} rc={r.returncode}: '
-                    f'{(r.stderr or r.stdout).strip()}'
-                )
-            return r.returncode == 0
+        host_param = 'qt_host' if qt else 'naoqi_host'
 
         def _wait_for_type(wanted, timeout_sec):
             """Return when self._robot_type == wanted or timeout expires."""
@@ -216,30 +201,17 @@ class WozNode(Node):
             while time.monotonic() < deadline:
                 if self._robot_type == wanted:
                     return True
-                # Block until _on_robot_config fires (or 0.3 s, whichever comes first)
                 self._robot_config_event.wait(timeout=0.3)
                 self._robot_config_event.clear()
             return self._robot_type == wanted
 
-        # Publish to nao_reconnect topic — nao_bridge updates its parameter from its own
-        # spin thread, bypassing the subprocess DDS-discovery issue with ros2 param set.
+        # Update bridge host via topic (bypasses DDS-discovery subprocess issues)
         self._reconnect_pub.publish(_RosString(data=f'{host_param}:{robot_ip}'))
-        time.sleep(0.4)  # give nao_bridge's spin thread time to call set_parameters
+        # Update robot_detector config via topic (same reason)
+        self._reconfig_pub.publish(_RosString(data=f'{robot_type}:{robot_version}'))
 
-        # Force deactivate/activate cycle via robot_detector so _on_activate re-reads host
-        _rset(det, 'robot_type', '_reset')
-
-        # Wait up to 5 s for robot_detector's timer to publish the _reset
-        if not _wait_for_type('_reset', 5.0):
-            self.get_logger().warn(
-                f'[WOZ] _reset not detected (current={self._robot_type!r}), continuing'
-            )
-
-        _rset(det, 'robot_version', robot_version)
-        _rset(det, 'robot_type', robot_type)
-
-        # Wait up to 7 s for the bridge to re-activate with the restored type
-        if not _wait_for_type(robot_type, 7.0):
+        # Wait up to 8 s for robot_config to confirm the new type is active
+        if not _wait_for_type(robot_type, 8.0):
             self.get_logger().warn(
                 f'[WOZ] Bridge did not re-activate (current={self._robot_type!r})'
             )

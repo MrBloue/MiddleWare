@@ -4,6 +4,7 @@ import rclpy
 from rclpy.node import Node
 from rclpy.qos import QoSProfile, DurabilityPolicy, ReliabilityPolicy
 from ros2_robot_bridge.msg import RobotConfig
+from std_msgs.msg import String
 
 VALID_VERSIONS = {
     "nao":     ["v5", "v6"],
@@ -27,7 +28,25 @@ class RobotDetector(Node):
         self._last = None
         self._publish_config()
         self.create_timer(2.0, self._publish_config)
+        self.create_subscription(String, 'robot_reconfig', self._on_reconfig_cmd, 10)
         self.get_logger().info("RobotDetector started.")
+
+    def _on_reconfig_cmd(self, msg: String):
+        """Update robot_type / robot_version at runtime via the robot_reconfig topic.
+        woz_node publishes here to avoid subprocess DDS discovery issues.
+        Message format: 'robot_type:robot_version'
+        """
+        import rclpy.parameter as rp
+        robot_type, _, robot_version = msg.data.partition(':')
+        params = []
+        if robot_type:
+            params.append(rp.Parameter('robot_type', rp.Parameter.Type.STRING, robot_type))
+        if robot_version:
+            params.append(rp.Parameter('robot_version', rp.Parameter.Type.STRING, robot_version))
+        if params:
+            self.set_parameters(params)
+            self._last = None  # force republish even if values unchanged
+            self._publish_config()
 
     def _publish_config(self):
         """Validate params and publish RobotConfig; only republishes when something changes."""
