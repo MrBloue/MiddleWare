@@ -378,6 +378,16 @@ def _register_routes(app: 'Flask', node: WozNode):
     @app.route('/woz', methods=['POST'])
     def woz():
         payload = request.get_json(silent=True) or {}
+
+        # Volume slider (0–100 integer)
+        if 'volume' in payload:
+            try:
+                level = max(0.0, min(1.0, float(payload['volume']) / 100.0))
+                node._pub_cmd(action='volume', speed=level)
+            except (ValueError, TypeError):
+                pass
+            return jsonify({})
+
         button  = (payload.get('command') or
                    payload.get('direction') or
                    payload.get('walk') or '')

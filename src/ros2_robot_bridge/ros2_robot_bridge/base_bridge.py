@@ -134,6 +134,8 @@ class RobotBridge(Node):
             self.do_display(msg)
         elif action in ("relax", "stiffen"):
             self.do_stiffness(msg, stiff=(action == "stiffen"))
+        elif action == "volume":
+            self.do_volume(msg)
 
     # ------------------------------------------------------------------
     # Public interface — subclasses implement these
@@ -169,4 +171,11 @@ class RobotBridge(Node):
         label = "stiffen" if stiff else "relax"
         self.get_logger().info(
             f"[{self.get_name()}] '{label}' not supported on this robot — skipped."
+        )
+
+    def do_volume(self, msg: RobotCmd):
+        """Set audio output volume. msg.speed is the level (0.0–1.0).
+        Default implementation logs that the action is not supported."""
+        self.get_logger().info(
+            f"[{self.get_name()}] 'volume' not supported on this robot — skipped."
         )

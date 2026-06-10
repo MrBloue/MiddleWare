@@ -55,6 +55,13 @@
     </div>
 
   
+    <div class="volume-container" id="volume-container">
+        <span class="volume-label" id="volume-label">50%</span>
+        <input type="range" id="volume-slider" class="volume-slider"
+               min="0" max="100" value="50" orient="vertical" />
+        <span class="volume-icon">🔊</span>
+    </div>
+
     <div class="joy3Div" id="joy3Div" ></div>
 
 
@@ -102,6 +109,31 @@
      setInterval(function(){ joy2X.value=Joy3.GetX(); }, 50);
      setInterval(function(){ joy2Y.value=Joy3.GetY(); }, 50);
      </script>
+
+<script type="text/javascript">
+(function() {
+    var slider = document.getElementById('volume-slider');
+    var label  = document.getElementById('volume-label');
+    var sendTimer = null;
+
+    function sendVolume(val) {
+        $.ajax({ url: '/woz', type: 'POST',
+                 contentType: 'application/json',
+                 data: JSON.stringify({ volume: parseInt(val) }) });
+    }
+
+    slider.addEventListener('input', function() {
+        label.textContent = this.value + '%';
+        clearTimeout(sendTimer);
+        sendTimer = setTimeout(function() { sendVolume(slider.value); }, 150);
+    });
+
+    slider.addEventListener('change', function() {
+        clearTimeout(sendTimer);
+        sendVolume(this.value);
+    });
+})();
+</script>
 
 <script><!--
 function onLoad() {
