@@ -403,7 +403,7 @@ def _register_routes(app: 'Flask', node: WozNode):
         if button in _HEAD_MAP:
             yaw, pitch = _HEAD_MAP[button]
             node._pub_cmd(action='move',
-                          motion_name=f'HeadYaw:{yaw},HeadPitch:{pitch}')
+                          motion_name=f'HeadYaw:{math.radians(yaw):.4f},HeadPitch:{math.radians(pitch):.4f}')
             return jsonify({})
 
         # WOZ reaction/scenario button
