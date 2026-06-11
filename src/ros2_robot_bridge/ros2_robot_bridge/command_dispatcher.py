@@ -47,7 +47,7 @@ class CommandDispatcher(Node):
             self.get_logger().warning("[Dispatcher] Robot not ready - command dropped.")
             return
         action = msg.action.lower().strip()
-        if action not in ("speak", "move", "display", "relax", "stiffen"):
+        if action not in ("speak", "move", "display", "relax", "stiffen", "volume"):
             self.get_logger().error(f"[Dispatcher] Unknown action '{msg.action}' - dropped.")
             return
         # Dedup: drop if identical command already forwarded within the window
