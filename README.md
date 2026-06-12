@@ -151,7 +151,7 @@ Enter the therapist's name, the child's first name, and last name. These names a
 | **Scénario et Jeux** | Scenario launch and explanation buttons grouped by game type |
 | **Réactions** | Quick-reaction buttons (emotions, feedback, questions) for live improvisation |
 | **Maison** | Alternate activity set (symbolic play, mime, manual activities, daily life) |
-| **RobotAct** | Theatre/performance page with expression and posture buttons, plus a walk joystick and a head-look joystick |
+| **RobotAct** | Theatre/performance page with expression and posture buttons, a walk joystick, a head-look joystick, and volume **+** / **−** buttons |
 
 All category labels in the UI use the generic term **"Le robot"** and are not tied to any specific robot model.
 
@@ -164,12 +164,12 @@ Each button sends a state name to the `/woz` endpoint. The state machine in `woz
 | `s` | Speech text | `RobotCmd(action='speak')` |
 | `e` | Emotion / animation name | `RobotCmd(action='display', emotion=...)` |
 | `g` | Gesture name | `RobotCmd(action='move', motion_name=...)` |
-| `h` | `[yaw_deg, pitch_deg]` head angles | `RobotCmd(action='move', motion_name='HeadYaw:r,HeadPitch:r')` |
+| `h` | `[yaw_deg, pitch_deg]` head angles | `RobotCmd(action='move', motion_name='HeadYaw:r,HeadPitch:r')` — degrees stored in state machine, converted to radians before publishing |
 | `la` | `[pitch, roll, elbow]` left arm degrees | `RobotCmd(action='move', motion_name='LShoulderPitch:r,...')` |
 | `ra` | `[pitch, roll, elbow]` right arm degrees | `RobotCmd(action='move', motion_name='RShoulderPitch:r,...')` |
 | `spd` | Posture transition speed 0.0–1.0 | `RobotCmd(speed=...)` — applies to posture changes (`Stand`, `Sit`, …) |
 
-Angles are stored in degrees in `woz_states.py` and converted to radians before publishing.
+Angles are stored in degrees everywhere (state machine and `_HEAD_MAP`) and converted to radians before publishing. This applies both to scripted behaviors and to the head-look joystick on the RobotAct tab.
 
 States can chain via time-based auto-transitions: `('time', seconds, next_state)`. Pressing any button cancels the pending timer and jumps directly to the chosen state.
 
@@ -247,7 +247,7 @@ ros2 topic pub --once /robot_cmd ros2_robot_bridge/msg/RobotCmd "{...}"
 
 | Field | Type | Description |
 |-------|------|-------------|
-| `action` | string | `speak`, `move`, `display`, `relax`, or `stiffen` |
+| `action` | string | `speak`, `move`, `display`, `relax`, `stiffen`, or `volume` |
 | `text` | string | Text to say |
 | `language` | string | Language code (e.g. `en-US`, `fr-FR`) |
 | `motion_name` | string | Motion, posture, gesture, walk command, or behavior name |
@@ -988,6 +988,24 @@ ros2 topic pub --once /robot_cmd ros2_robot_bridge/msg/RobotCmd \
 
 ---
 
+## volume
+
+Set the robot's audio output volume.
+
+```bash
+ros2 topic pub --once /robot_cmd ros2_robot_bridge/msg/RobotCmd \
+    "{action: 'volume', speed: 0.6}"
+```
+
+`speed` is the target level in the `0.0`–`1.0` range (e.g. `0.5` = 50 %).
+
+**NAO / Pepper:** calls `ALAudioDevice.setOutputVolume(0–100)` via qi.  
+**QTrobot:** not implemented — command is silently skipped and logged.
+
+The **RobotAct** tab in the WOZ interface exposes two circular buttons (**+** / **−**) above the left joystick. Each press adjusts the volume by ±10 percentage points (clamped to 0–100). The current level is tracked client-side starting at 50 % and is not displayed.
+
+---
+
 ## relax / stiffen
 
 Set joint stiffness to 0 (limp) or 1 (rigid). Use `motion_name` to specify which body part.
@@ -1153,7 +1171,7 @@ ros2 topic echo /nao_46/audio/localization/confidence # 0.0 to 1.0
 
 ### RobotCmd.msg
 ```
-string action        # speak | move | display | relax | stiffen
+string action        # speak | move | display | relax | stiffen | volume
 string text
 string language
 string motion_name
@@ -1323,7 +1341,7 @@ The node also subscribes to the `robot_reconfig` topic (format: `robot_type:robo
 
 Responsibilities:
 - Drops commands if no robot config has been received yet, or if the robot is not marked ready.
-- Rejects unknown actions (`speak`, `move`, `display`, `relax`, `stiffen` are valid).
+- Rejects unknown actions (`speak`, `move`, `display`, `relax`, `stiffen`, `volume` are valid).
 - Deduplicates: if the exact same command (all fields) arrives again within 1 second it is silently dropped. This makes it safe to publish with `--times 3` for DDS reliability without executing the action multiple times.
 - Prunes the dedup cache periodically so memory stays bounded.
 
@@ -1337,7 +1355,7 @@ The dispatcher is intentionally **robot-agnostic** — it knows nothing about NA
 
 #### Connection lifecycle
 
-On receiving an active `RobotConfig`, the node opens a `qi.Session` in a background thread and acquires proxies for five services: `ALRobotPosture`, `ALLeds`, `ALMotion`, `ALTextToSpeech`, and `ALBehaviorManager`. If the `qi` SDK is not installed the node falls back to publishing on ROS topics (`/speech`, `/joint_angles`, `/cmd_vel`).
+On receiving an active `RobotConfig`, the node opens a `qi.Session` in a background thread and acquires proxies for six services: `ALRobotPosture`, `ALLeds`, `ALMotion`, `ALTextToSpeech`, `ALBehaviorManager`, and `ALAudioDevice`. If the `qi` SDK is not installed the node falls back to publishing on ROS topics (`/speech`, `/joint_angles`, `/cmd_vel`).
 
 A 60-second keepalive timer calls `ALTextToSpeech.getLanguage()` to prevent the NAOqi TCP connection from closing after long idle periods. If the ping fails, a reconnect thread retries `_connect_qi` up to 5 times with exponential backoff (5 s, 10 s, 15 s, 20 s, 25 s). A `threading.Lock` ensures at most one reconnect thread runs at a time.
 
