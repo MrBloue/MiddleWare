@@ -378,6 +378,16 @@ def _register_routes(app: 'Flask', node: WozNode):
     @app.route('/woz', methods=['POST'])
     def woz():
         payload = request.get_json(silent=True) or {}
+
+        # Volume slider (0–100 integer)
+        if 'volume' in payload:
+            try:
+                level = max(0.0, min(1.0, float(payload['volume']) / 100.0))
+                node._pub_cmd(action='volume', speed=level)
+            except (ValueError, TypeError):
+                pass
+            return jsonify({})
+
         button  = (payload.get('command') or
                    payload.get('direction') or
                    payload.get('walk') or '')
@@ -393,7 +403,7 @@ def _register_routes(app: 'Flask', node: WozNode):
         if button in _HEAD_MAP:
             yaw, pitch = _HEAD_MAP[button]
             node._pub_cmd(action='move',
-                          motion_name=f'HeadYaw:{yaw},HeadPitch:{pitch}')
+                          motion_name=f'HeadYaw:{math.radians(yaw):.4f},HeadPitch:{math.radians(pitch):.4f}')
             return jsonify({})
 
         # WOZ reaction/scenario button

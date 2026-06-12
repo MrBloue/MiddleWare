@@ -1181,6 +1181,7 @@ class NaoBridge(RobotBridge):
         self._motion_proxy = None
         self._tts_proxy = None
         self._behavior_proxy = None
+        self._audio_proxy = None
 
     def connect(self):
         """Open a qi session and acquire all service proxies."""
@@ -1206,6 +1207,7 @@ class NaoBridge(RobotBridge):
             self._motion_proxy = session.service("ALMotion")
             self._tts_proxy = session.service("ALTextToSpeech")
             self._behavior_proxy = session.service("ALBehaviorManager")
+            self._audio_proxy = session.service("ALAudioDevice")
             # Clear any TTS speech that was queued during a previous session
             # (e.g. from duplicate say() calls before the node was killed).
             try:
@@ -1285,6 +1287,20 @@ class NaoBridge(RobotBridge):
         return any(k in msg for k in (
             "socket", "not connected", "disconnected", "broken pipe", "connection reset"
         ))
+
+    # ------------------------------------------------------------------
+    # volume
+    # ------------------------------------------------------------------
+
+    def do_volume(self, msg: RobotCmd):
+        """Set audio output volume via ALAudioDevice (msg.speed = 0.0–1.0)."""
+        level = max(0, min(100, int((msg.speed if msg.speed > 0 else 0.5) * 100)))
+        self.get_logger().info(f'[NaoBridge] volume → {level}%')
+        if self._audio_proxy is not None:
+            try:
+                self._audio_proxy.setOutputVolume(level)
+            except Exception as exc:
+                self.get_logger().warn(f'[NaoBridge] volume error: {exc}')
 
     # ------------------------------------------------------------------
     # speak
