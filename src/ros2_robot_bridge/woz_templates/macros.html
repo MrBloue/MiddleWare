@@ -54,9 +54,13 @@
                     <div class="macro-form-row">
                         <input id="new-label" type="text" placeholder="Nom du bouton" required />
                     </div>
-                    <div class="macro-form-row">
-                        <select id="new-motion"></select>
+                    <div class="macro-form-row macro-form-row--motions">
+                        <select id="new-motion-pick"></select>
+                        <input id="new-motion-speed" type="number" min="0.1" max="1.0" step="0.1" value="0.5" title="Vitesse (0.1–1.0)" />
+                        <input id="new-motion-duration" type="number" min="0.5" max="60" step="0.5" value="3" title="Durée avant prochain mouvement (s)" />
+                        <button type="button" id="btn-add-motion" class="motion-add-btn">+</button>
                     </div>
+                    <div id="motion-list" class="motion-list"></div>
                     <div class="macro-form-row">
                         <select id="new-emotion"></select>
                     </div>

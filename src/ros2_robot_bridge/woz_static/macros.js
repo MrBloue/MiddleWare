@@ -111,6 +111,8 @@ var LED_GROUPS = [
 
 var STORAGE_KEY = 'woz_homebrew_v2';
 
+var pendingMotions = [];
+
 function loadHomebrew() {
     try { return JSON.parse(localStorage.getItem(STORAGE_KEY)) || []; }
     catch(e) { return []; }
@@ -121,10 +123,19 @@ function saveHomebrew(list) {
 }
 
 function sendActions(item) {
-    if (item.motion) {
-        $.ajax({ url: '/woz', type: 'POST', contentType: 'application/json',
-                 data: JSON.stringify({ motion: item.motion }) });
-    }
+    var motions = item.motions && item.motions.length ? item.motions
+                : (item.motion ? [{ name: item.motion, speed: 0.5, duration: 3 }] : []);
+    var delay = 0;
+    motions.forEach(function(m) {
+        var name     = typeof m === 'string' ? m : m.name;
+        var speed    = typeof m === 'object' ? (parseFloat(m.speed)    || 0.5) : 0.5;
+        var duration = typeof m === 'object' ? (parseFloat(m.duration) || 3.0) : 3.0;
+        setTimeout(function() {
+            $.ajax({ url: '/woz', type: 'POST', contentType: 'application/json',
+                     data: JSON.stringify({ motion: name, speed: speed }) });
+        }, delay * 1000);
+        delay += duration;
+    });
     if (item.emotion) {
         $.ajax({ url: '/woz', type: 'POST', contentType: 'application/json',
                  data: JSON.stringify({ emotion: item.emotion }) });
@@ -141,7 +152,17 @@ function sendActions(item) {
 
 function buildActionSummary(item) {
     var parts = [];
-    if (item.motion)   parts.push('🤖 ' + item.motion);
+    var motions = item.motions && item.motions.length ? item.motions
+                : (item.motion ? [{ name: item.motion, speed: 0.5, duration: 3 }] : []);
+    if (motions.length) {
+        var labels = motions.map(function(m) {
+            var name = typeof m === 'string' ? m : m.name;
+            var spd  = typeof m === 'object' ? m.speed    : 0.5;
+            var dur  = typeof m === 'object' ? m.duration : 3;
+            return name + ' (' + spd + '×, ' + dur + 's)';
+        });
+        parts.push('🤖 ' + labels.join(' → '));
+    }
     if (item.emotion)  parts.push('💡 ' + item.emotion);
     if (item.led_name) parts.push('🔆 ' + item.led_name + ' ' + (item.led_color || '#ffffff'));
     if (item.speak)    parts.push('🔊 ' + item.speak.substring(0, 24) + (item.speak.length > 24 ? '…' : ''));
@@ -225,6 +246,28 @@ function buildEmotionSelect(id) {
     });
 }
 
+function renderMotionList() {
+    var container = document.getElementById('motion-list');
+    container.innerHTML = '';
+    if (pendingMotions.length === 0) {
+        container.innerHTML = '<span class="motion-empty">Aucun mouvement ajouté</span>';
+        return;
+    }
+    pendingMotions.forEach(function(m, i) {
+        var chip = document.createElement('span');
+        chip.className = 'motion-chip';
+        chip.innerHTML = '<span class="motion-chip-name">' + m.name + '</span>' +
+                         '<span class="motion-chip-meta">×' + m.speed + ' ' + m.duration + 's</span>';
+        var del = document.createElement('button');
+        del.type = 'button';
+        del.className = 'motion-chip-del';
+        del.textContent = '×';
+        del.onclick = function() { pendingMotions.splice(i, 1); renderMotionList(); };
+        chip.appendChild(del);
+        container.appendChild(chip);
+    });
+}
+
 function buildLedSelect(id) {
     var sel = document.getElementById(id);
     sel.innerHTML = '<option value="">— Aucune LED —</option>';
@@ -238,10 +281,22 @@ function buildLedSelect(id) {
 
 function onLoad() {
     renderQuick();
-    buildMotionSelect('new-motion');
+    buildMotionSelect('new-motion-pick');
     buildEmotionSelect('new-emotion');
     buildLedSelect('new-led');
+    renderMotionList();
     renderHomebrew();
+
+    document.getElementById('btn-add-motion').addEventListener('click', function() {
+        var name  = document.getElementById('new-motion-pick').value;
+        if (!name) return;
+        var speed    = parseFloat(document.getElementById('new-motion-speed').value)    || 0.5;
+        var duration = parseFloat(document.getElementById('new-motion-duration').value) || 3.0;
+        speed    = Math.min(1.0, Math.max(0.1, speed));
+        duration = Math.max(0.5, duration);
+        pendingMotions.push({ name: name, speed: speed, duration: duration });
+        renderMotionList();
+    });
 
     document.getElementById('btn-relax').addEventListener('click', function() {
         $.ajax({ url: '/woz', type: 'POST', contentType: 'application/json',
@@ -256,25 +311,26 @@ function onLoad() {
         e.preventDefault();
         var label    = document.getElementById('new-label').value.trim();
         var speak    = document.getElementById('new-speak').value.trim();
-        var motion   = document.getElementById('new-motion').value;
         var emotion  = document.getElementById('new-emotion').value;
         var led_name = document.getElementById('new-led').value;
         var led_color= document.getElementById('new-led-color').value;
         if (!label) return;
-        if (!speak && !motion && !emotion && !led_name) {
+        if (!speak && !pendingMotions.length && !emotion && !led_name) {
             alert('Remplis au moins un champ (mouvement, émotion, LED ou texte).');
             return;
         }
         var list = loadHomebrew();
-        list.push({ label: label, speak: speak, motion: motion, emotion: emotion,
-                    led_name: led_name, led_color: led_color });
+        list.push({ label: label, speak: speak, motions: pendingMotions.slice(),
+                    emotion: emotion, led_name: led_name, led_color: led_color });
         saveHomebrew(list);
         renderHomebrew();
         document.getElementById('new-label').value = '';
         document.getElementById('new-speak').value = '';
-        document.getElementById('new-motion').value = '';
+        document.getElementById('new-motion-pick').value = '';
         document.getElementById('new-emotion').value = '';
         document.getElementById('new-led').value = '';
         document.getElementById('new-led-color').value = '#ffffff';
+        pendingMotions = [];
+        renderMotionList();
     });
 }
