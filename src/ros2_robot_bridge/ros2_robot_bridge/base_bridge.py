@@ -136,6 +136,7 @@ class RobotBridge(Node):
             self.do_stiffness(msg, stiff=(action == "stiffen"))
         elif action == "volume":
             self.do_volume(msg)
+        self._after_cmd(msg)
 
     # ------------------------------------------------------------------
     # Public interface — subclasses implement these
@@ -150,6 +151,10 @@ class RobotBridge(Node):
     def disconnect(self):
         """Close the connection to the robot gracefully.
         Called in a background thread on deactivation and at node teardown."""
+        pass
+
+    def _after_cmd(self, msg: RobotCmd):
+        """Called after every command dispatch. Subclasses can override."""
         pass
 
     def do_speak(self, msg: RobotCmd):

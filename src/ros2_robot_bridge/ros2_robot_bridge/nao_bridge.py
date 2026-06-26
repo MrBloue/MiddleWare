@@ -1247,6 +1247,18 @@ class NaoBridge(RobotBridge):
         """Clear proxies on deactivation or shutdown."""
         self._on_deactivate()
 
+    def _after_cmd(self, msg):
+        """Re-disable autonomous life after each command — Pepper re-enables it on input."""
+        if self._qi_session is None:
+            return
+        try:
+            life = self._qi_session.service("ALAutonomousLife")
+            if life.getState() != "disabled":
+                life.setState("disabled")
+                self.get_logger().info("[NaoBridge] ALAutonomousLife re-disabled after command.")
+        except Exception:
+            pass
+
     def _keepalive(self):
         """Ping NAOqi every 60 s to keep the TCP connection alive; reconnect on failure."""
         if not self._active or self._qi_session is None:
@@ -1256,6 +1268,14 @@ class NaoBridge(RobotBridge):
         except Exception:
             self.get_logger().warning("[NaoBridge] Keepalive failed — reconnecting...")
             threading.Thread(target=self._reconnect, daemon=True).start()
+            return
+        try:
+            life = self._qi_session.service("ALAutonomousLife")
+            if life.getState() != "disabled":
+                life.setState("disabled")
+                self.get_logger().info("[NaoBridge] ALAutonomousLife re-disabled (was re-enabled externally).")
+        except Exception:
+            pass
 
     def _reconnect(self):
         """Clear proxies and retry connect() up to 5 times with backoff.
