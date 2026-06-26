@@ -119,7 +119,10 @@ class WozNode(Node):
             target=self._run_flask, args=(host, port), daemon=True
         )
         flask_thread.start()
-        self.get_logger().info(f'[WOZ] Web interface → http://{host}:{port}')
+        display_host = host if host != '0.0.0.0' else (
+            socket.gethostbyname(socket.gethostname())
+        )
+        self.get_logger().info(f'[WOZ] Web interface → http://{display_host}:{port}')
 
         # kick off the initial state
         self._enter_state('begin')
