@@ -113,19 +113,6 @@ var STORAGE_KEY = 'woz_homebrew_v2';
 
 var pendingMotions = [];
 
-var COOLDOWN_MS = 1500;
-
-function withCooldown(btn, fn) {
-    if (btn.disabled) return;
-    fn();
-    btn.disabled = true;
-    btn.style.opacity = '0.45';
-    setTimeout(function() {
-        btn.disabled = false;
-        btn.style.opacity = '';
-    }, COOLDOWN_MS);
-}
-
 function loadHomebrew() {
     try { return JSON.parse(localStorage.getItem(STORAGE_KEY)) || []; }
     catch(e) { return []; }
@@ -190,10 +177,8 @@ function renderQuick() {
         btn.className = 'macro-btn';
         btn.textContent = item[0];
         btn.onclick = function() {
-            withCooldown(btn, function() {
-                $.ajax({ url: '/woz', type: 'POST', contentType: 'application/json',
-                         data: JSON.stringify({ motion: item[1] }) });
-            });
+            $.ajax({ url: '/woz', type: 'POST', contentType: 'application/json',
+                     data: JSON.stringify({ motion: item[1] }) });
         };
         container.appendChild(btn);
     });
@@ -215,7 +200,7 @@ function renderHomebrew() {
         btn.className = 'macro-btn macro-btn--custom';
         btn.innerHTML = '<span class="macro-btn-label">' + item.label + '</span>' +
                         '<span class="macro-btn-summary">' + buildActionSummary(item) + '</span>';
-        btn.onclick = function() { withCooldown(btn, function() { sendActions(item); }); };
+        btn.onclick = function() { sendActions(item); };
 
         var del = document.createElement('button');
         del.className = 'macro-del';

@@ -378,9 +378,37 @@ def _register_routes(app: 'Flask', node: WozNode):
             return redirect('/')
         return render_template('maison.html')
 
+    @app.route('/macros')
+    def macros():
+        if not _session_ok():
+            return redirect('/')
+        return render_template('macros.html')
+
     @app.route('/woz', methods=['POST'])
     def woz():
         payload = request.get_json(silent=True) or {}
+
+        # Direct commands from the macros tab
+        if 'motion' in payload:
+            node._pub_cmd(action='move', motion_name=str(payload['motion']))
+            return jsonify({})
+        if 'speak_text' in payload:
+            node._pub_cmd(action='speak', text=str(payload['speak_text']), language=node._lang)
+            return jsonify({})
+        if 'emotion' in payload and 'command' not in payload and 'walk' not in payload:
+            node._pub_cmd(action='display', emotion=str(payload['emotion']))
+            return jsonify({})
+        if 'led_name' in payload:
+            node._pub_cmd(action='display',
+                          led_name=str(payload['led_name']),
+                          color=str(payload.get('led_color', 'white')))
+            return jsonify({})
+        if payload.get('relax'):
+            node._pub_cmd(action='relax', motion_name='body')
+            return jsonify({})
+        if payload.get('stiffen'):
+            node._pub_cmd(action='stiffen', motion_name='body')
+            return jsonify({})
 
         # Volume slider (0–100 integer)
         if 'volume' in payload:
