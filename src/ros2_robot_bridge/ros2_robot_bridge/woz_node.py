@@ -460,7 +460,8 @@ def _register_routes(app: 'Flask', node: WozNode):
 
         # Direct commands from the macros tab
         if 'motion' in payload:
-            node._pub_cmd(action='move', motion_name=str(payload['motion']))
+            spd = max(0.1, min(1.0, float(payload.get('speed', 0.5))))
+            node._pub_cmd(action='move', motion_name=str(payload['motion']), speed=spd)
             return jsonify({})
         if 'speak_text' in payload:
             node._pub_cmd(action='speak', text=str(payload['speak_text']), language=node._lang)

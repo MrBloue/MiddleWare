@@ -844,3 +844,33 @@ bottom_right{
     text-align: center;
     max-width: 460px;
 }
+
+.vocal-speed-row {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    width: 100%;
+    max-width: 400px;
+}
+
+.vocal-speed-label {
+    font-size: 13px;
+    font-weight: bold;
+    color: #555;
+    white-space: nowrap;
+}
+
+.vocal-speed-slider {
+    flex: 1;
+    accent-color: #3a7bd5;
+    height: 6px;
+    cursor: pointer;
+}
+
+.vocal-speed-value {
+    font-size: 13px;
+    font-weight: bold;
+    color: #3a7bd5;
+    width: 34px;
+    text-align: right;
+}
