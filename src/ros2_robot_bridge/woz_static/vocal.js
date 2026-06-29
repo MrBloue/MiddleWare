@@ -2,47 +2,64 @@
 
 var VOICE_COMMANDS = [
     // Postures
-    { words: ['debout', 'lève-toi', 'leve toi', 'mets-toi debout', 'stand'], motion: 'stand' },
-    { words: ['assis', 'assieds-toi', 'sit', 'pose-toi'], motion: 'sit' },
-    { words: ['accroupi', 'baisse-toi', 'crouch'], motion: 'crouch' },
-    // Gestes
-    { words: ['salue', 'bonjour', 'coucou', 'salut', 'wave', 'dis bonjour'], motion: 'wave' },
-    { words: ['applaudis', 'bravo', 'clap'], motion: 'applause' },
-    { words: ['oui', 'acquiesce', 'hoche la tête', 'nod'], motion: 'nod' },
-    { words: ['non', 'secoue la tête', 'shake'], motion: 'shake_head' },
-    { words: ['révérence', 'incline-toi', 'bow', 'arc'], motion: 'bow' },
-    { words: ['bras ouverts', 'ouvre les bras', 'arms open'], motion: 'arms_open' },
-    { words: ['donne', 'tends la main', 'give'], motion: 'give' },
-    { words: ['pointe', 'montre', 'point'], motion: 'point_forward' },
-    { words: ['muscle', 'fort', 'muscles'], motion: 'show_muscles' },
-    { words: ['câlin', 'love you', 'calin'], motion: 'love_you' },
+    { words: ['debout', 'lève-toi', 'leve-toi', 'mets-toi debout', 'stand up', 'lève toi'], motion: 'stand' },
+    { words: ['assis', 'assieds-toi', 'assied-toi', 'sit down', 'pose-toi', 'assieds toi'], motion: 'sit' },
+    { words: ['accroupi', 'baisse-toi', 'accroupis-toi', 'crouch', 'penche-toi'], motion: 'crouch' },
+    { words: ['position initiale', 'stand init', 'initialise', 'position de départ'], motion: 'standinit' },
+    // Gestes courants
+    { words: ['salue', 'salut', 'bonjour', 'coucou', 'wave', 'dis bonjour', 'au revoir'], motion: 'wave' },
+    { words: ['applaudis', 'bravo', 'clap', 'applaudir', 'tape des mains'], motion: 'applause' },
+    { words: ['oui', 'acquiesce', 'hoche la tête', 'nod', 'approuve', 'confirme'], motion: 'nod' },
+    { words: ['non', 'secoue la tête', 'shake', 'refuse', 'nie', 'pas question'], motion: 'shake_head' },
+    { words: ['révérence', 'incline-toi', 'bow', 'arc', 'salut japonais', 'incline'], motion: 'bow' },
+    { words: ['bras ouverts', 'ouvre les bras', 'écarte les bras', 'viens', 'accueil'], motion: 'arms_open' },
+    { words: ['donne', 'tends la main', 'give', 'offre', 'présente', 'tend la main'], motion: 'give' },
+    { words: ['pointe', 'montre', 'point', 'indique', 'désigne', 'regarde là'], motion: 'point_forward' },
+    { words: ['muscle', 'fort', 'muscles', 'montre tes muscles', 'super héros', 'force'], motion: 'show_muscles' },
+    { words: ['câlin', 'love you', 'calin', 'je t\'aime', 'bisou', 'affection'], motion: 'love_you' },
+    { words: ['gratte la tête', 'gratte-toi', 'scratch', 'gratte'], motion: 'scratch_head' },
+    { words: ['coucou cache', 'peekaboo', 'peek', 'coucou me voilà'], motion: 'peekaboo' },
+    { words: ['écoute', 'écouter', 'j\'écoute', 'listening', 'attentif'], motion: 'listening_anim' },
+    { words: ['enthousiaste', 'super', 'génial', 'ouais', 'enthusiastic'], motion: 'enthusiastic_g' },
+    { words: ['réfléchis', 'pense', 'think', 'je réfléchis', 'hmm', 'voyons'], motion: 'think' },
     // Émotions corps
-    { words: ['content', 'heureux', 'joyeux', 'happy'], motion: 'happy_anim' },
-    { words: ['triste', 'sad', 'pleure'], motion: 'sad_anim' },
-    { words: ['ris', 'rire', 'laugh', 'haha'], motion: 'laugh_anim' },
-    { words: ['peur', 'scared', 'effrayé', 'fear'], motion: 'fear' },
-    { words: ['confus', 'confused', 'perdu'], motion: 'confused_anim' },
-    { words: ['timide', 'shy'], motion: 'shy_anim' },
-    { words: ['excité', 'excited'], motion: 'excited_anim' },
-    { words: ['colère', 'angry', 'fâché'], motion: 'angry_anim' },
-    { words: ['réfléchis', 'pense', 'think'], motion: 'think' },
-    // Danse
-    { words: ['danse', 'dance', 'bouge'], motion: 'funny_dancer' },
-    { words: ['guitare', 'guitar'], motion: 'air_guitar' },
-    { words: ['robot dance', 'danse robot'], motion: 'robot_dance' },
-    { words: ['zombie'], motion: 'zombie' },
-    { words: ['kung fu', 'kungfu'], motion: 'kung_fu' },
+    { words: ['content', 'heureux', 'joyeux', 'happy', 'je suis content', 'super content'], motion: 'happy_anim' },
+    { words: ['triste', 'sad', 'pleure', 'je suis triste', 'déprimé'], motion: 'sad_anim' },
+    { words: ['ris', 'rire', 'laugh', 'haha', 'hihi', 'je ris', 'c\'est drôle'], motion: 'laugh_anim' },
+    { words: ['peur', 'scared', 'effrayé', 'fear', 'j\'ai peur', 'terrifié'], motion: 'fear' },
+    { words: ['confus', 'confused', 'perdu', 'je comprends pas', 'quoi', 'hein'], motion: 'confused_anim' },
+    { words: ['timide', 'shy', 'gêné', 'je suis gêné', 'honte'], motion: 'shy_anim' },
+    { words: ['excité', 'excited', 'je suis excité', 'trop bien', 'génial'], motion: 'excited_anim' },
+    { words: ['colère', 'angry', 'fâché', 'en colère', 'je suis fâché', 'rage'], motion: 'angry_anim' },
+    { words: ['déçu', 'disappointed', 'dommage', 'c\'est nul', 'pas content'], motion: 'disappointed' },
+    { words: ['fier', 'proud', 'je suis fier', 'bravo moi', 'victoire'], motion: 'proud' },
+    { words: ['fatigué', 'tired', 'je suis fatigué', 'repos', 'épuisé'], motion: 'relaxation' },
+    // Danses / spectacle
+    { words: ['danse', 'dance', 'bouge', 'on danse', 'fais la fête'], motion: 'funny_dancer' },
+    { words: ['guitare', 'guitar', 'air guitare', 'rock', 'rock and roll'], motion: 'air_guitar' },
+    { words: ['robot', 'danse robot', 'robot dance', 'comme un robot'], motion: 'robot_dance' },
+    { words: ['zombie', 'mort vivant', 'zombie dance'], motion: 'zombie' },
+    { words: ['hélicoptère', 'helicoptere', 'helicopter', 'tourne les bras'], motion: 'helicopter' },
+    { words: ['kung fu', 'kungfu', 'karaté', 'arts martiaux', 'combat'], motion: 'kung_fu' },
     // Marche
-    { words: ['avance', 'avancer', 'en avant', 'forward', 'marche'], motion: 'walk_forward' },
-    { words: ['recule', 'reculer', 'en arrière', 'backward'], motion: 'walk_backward' },
-    { words: ['à gauche', 'va à gauche', 'gauche', 'left'], motion: 'walk_left' },
-    { words: ['à droite', 'va à droite', 'droite', 'right'], motion: 'walk_right' },
-    { words: ['tourne gauche', 'turn left'], motion: 'turn_left' },
-    { words: ['tourne droite', 'turn right'], motion: 'turn_right' },
-    { words: ['stop', 'arrête', 'arrête-toi', 'halte', 'immobile'], motion: 'stop' },
+    { words: ['avance', 'avancer', 'en avant', 'marche', 'vas-y', 'go'], motion: 'walk_forward' },
+    { words: ['recule', 'reculer', 'en arrière', 'recule-toi', 'back'], motion: 'walk_backward' },
+    { words: ['gauche', 'à gauche', 'va à gauche', 'left', 'vers la gauche'], motion: 'walk_left' },
+    { words: ['droite', 'à droite', 'va à droite', 'right', 'vers la droite'], motion: 'walk_right' },
+    { words: ['tourne à gauche', 'tourne gauche', 'turn left', 'pivote gauche'], motion: 'turn_left' },
+    { words: ['tourne à droite', 'tourne droite', 'turn right', 'pivote droite'], motion: 'turn_right' },
+    { words: ['stop', 'arrête', 'arrête-toi', 'halte', 'immobile', 'ne bouge plus', 'freeze'], motion: 'stop' },
+    // LEDs / émotions lumineuses
+    { words: ['lumière jaune', 'content lumière', 'led content', 'yeux jaunes'], emotion: 'happy' },
+    { words: ['lumière bleue', 'triste lumière', 'led triste', 'yeux bleus'], emotion: 'sad' },
+    { words: ['lumière rouge', 'colère lumière', 'led colère', 'yeux rouges'], emotion: 'angry' },
+    { words: ['lumière blanche', 'neutre lumière', 'led neutre', 'yeux blancs'], emotion: 'neutral' },
+    { words: ['lumière cyan', 'surpris lumière', 'led surpris', 'yeux cyan'], emotion: 'surprised' },
+    { words: ['lumière violette', 'peur lumière', 'led peur', 'yeux violets'], emotion: 'scared' },
+    { words: ['lumière orange', 'excité lumière', 'led excité', 'yeux oranges'], emotion: 'excited' },
     // Moteurs
-    { words: ['relax', 'détends-toi', 'repos', 'déstiffène', 'soft', 'mou'], relax: true },
-    { words: ['stiffen', 'raidis-toi', 'active-toi', 'réveille-toi', 'dur'], stiffen: true },
+    { words: ['relax', 'détends-toi', 'détends toi', 'repos moteurs', 'déstiffène', 'mou', 'soft'], relax: true },
+    { words: ['stiffen', 'raidis-toi', 'raidis toi', 'active-toi', 'réveille-toi', 'dur', 'rigide'], stiffen: true },
 ];
 
 var mediaRecorder = null;
@@ -96,6 +113,7 @@ function stopRecording() {
 function sendForTranscription(blob) {
     var formData = new FormData();
     formData.append('audio', blob, 'audio.webm');
+    formData.append('mode', currentMode);
     $.ajax({
         url: '/woz_transcribe',
         type: 'POST',
@@ -139,6 +157,7 @@ function dispatch(text) {
         for (var j = 0; j < cmd.words.length; j++) {
             if (norm.indexOf(normalize(cmd.words[j])) !== -1) {
                 if (cmd.motion)   sendPost({ motion: cmd.motion });
+                if (cmd.emotion)  sendPost({ emotion: cmd.emotion });
                 if (cmd.relax)    sendPost({ relax: true });
                 if (cmd.stiffen)  sendPost({ stiffen: true });
                 setStatus('idle', '✓ « ' + text + ' » → ' + cmd.words[j]);

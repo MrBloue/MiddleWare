@@ -429,19 +429,35 @@ def _register_routes(app: 'Flask', node: WozNode):
             audio_file.save(tmp)
             tmp_path = tmp.name
         try:
-            # initial_prompt biases Whisper toward known command vocabulary
-            prompt = (
-                'debout, assis, salue, bonjour, applaudis, oui, non, arc, bras ouverts, '
-                'donne, pointe, muscles, câlin, content, heureux, triste, rire, peur, '
-                'confus, timide, excité, colère, réfléchis, danse, guitare, zombie, '
-                'kung fu, avance, recule, gauche, droite, tourne, stop, arrête, '
-                'relax, détends-toi, stiffen, raidis-toi'
-            )
+            mode = request.form.get('mode', 'repeat')
+            # In repeat mode: unbiased, natural speech transcription.
+            # In command mode: temperature=0 + exhaustive vocabulary prompt forces
+            # Whisper to snap to known command words instead of free-form guesses.
+            prompt = None
+            temperature = 0.0 if mode == 'command' else 0.2
+            if mode == 'command':
+                prompt = (
+                    'debout, lève-toi, assis, assieds-toi, accroupi, position initiale, '
+                    'salue, bonjour, coucou, au revoir, applaudis, bravo, oui, non, '
+                    'révérence, arc, bras ouverts, donne, pointe, montre, muscle, fort, '
+                    'câlin, gratte la tête, peekaboo, coucou cache, écoute, enthousiaste, '
+                    'réfléchis, pense, content, heureux, joyeux, triste, pleure, '
+                    'ris, rire, peur, effrayé, confus, perdu, timide, excité, '
+                    'colère, fâché, déçu, fier, fatigué, '
+                    'danse, guitare, robot, zombie, hélicoptère, kung fu, '
+                    'avance, marche, recule, gauche, droite, '
+                    'tourne à gauche, tourne à droite, stop, arrête, halte, '
+                    'lumière jaune, lumière bleue, lumière rouge, lumière blanche, '
+                    'lumière cyan, lumière violette, lumière orange, '
+                    'relax, détends-toi, stiffen, raidis-toi'
+                )
             segments, _ = model.transcribe(
                 tmp_path,
                 language='fr',
                 initial_prompt=prompt,
                 beam_size=5,
+                temperature=temperature,
+                condition_on_previous_text=False,
                 vad_filter=True,
                 vad_parameters={'min_silence_duration_ms': 300},
             )
