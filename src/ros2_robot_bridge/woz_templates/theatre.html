@@ -27,7 +27,10 @@
             <a href="maison">Maison</a> </div> 
             <div class="tab tab--on">
             <a href="theatre">RobotAct</a> </div>
-  
+            <div class="tab tab--off">
+            <a href="macros">Macros</a> </div>
+            <div class="tab tab--off">
+            <a href="vocal">Vocal</a></div>
         </div>
     
         <div id="body">            
@@ -55,12 +58,6 @@
     </div>
 
   
-    <div class="volume-container" id="volume-container">
-        <button class="volume-btn" id="volume-up">+</button>
-        <span class="volume-icon">🔊</span>
-        <button class="volume-btn" id="volume-down">-</button>
-    </div>
-
     <div class="joy3Div" id="joy3Div" ></div>
 
 
@@ -109,24 +106,6 @@
      setInterval(function(){ joy2Y.value=Joy3.GetY(); }, 50);
      </script>
 
-<script type="text/javascript">
-(function() {
-    var level = 50;
-    function sendVolume() {
-        $.ajax({ url: '/woz', type: 'POST',
-                 contentType: 'application/json',
-                 data: JSON.stringify({ volume: level }) });
-    }
-    document.getElementById('volume-up').addEventListener('click', function() {
-        level = Math.min(100, level + 1);
-        sendVolume();
-    });
-    document.getElementById('volume-down').addEventListener('click', function() {
-        level = Math.max(0, level - 1);
-        sendVolume();
-    });
-})();
-</script>
 
 <script><!--
 function onLoad() {
