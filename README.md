@@ -41,6 +41,33 @@ The bridge connects directly via the **qi SDK** — no naoqi_driver2 required.
   ```
 - `roslibpy` must be installed: `pip install roslibpy`
 
+### Python dependencies
+
+```bash
+pip install -r src/ros2_robot_bridge/requirements.txt
+```
+
+| Package | Purpose |
+|---------|---------|
+| `flask>=3.0` | WOZ web server |
+| `roslibpy>=1.3` | QTrobot rosbridge client |
+| `pyopenssl>=23.0` | HTTPS for WOZ (mic access on LAN) |
+| `faster-whisper>=1.0` | Server-side speech-to-text for the Vocal tab |
+
+The WOZ interface runs over **HTTPS** (self-signed certificate via pyopenssl). Browsers will show a security warning the first time — accept it once. HTTPS is required for microphone access from any device other than localhost.
+
+---
+
+## Jetson / ROS2 Humble
+
+The package is compatible with both **ROS2 Jazzy** (Ubuntu 24.04) and **ROS2 Humble** (Ubuntu 22.04 / Jetson). No code changes are needed when targeting Humble.
+
+`setup.sh` at the workspace root bootstraps a fresh Ubuntu 22.04 / Jetson system end-to-end: locale, ROS2 Humble apt repository, system packages, rosdep, pip dependencies, and colcon build.
+
+```bash
+bash setup.sh
+```
+
 ---
 
 ## Build
@@ -152,8 +179,23 @@ Enter the therapist's name, the child's first name, and last name. These names a
 | **Réactions** | Quick-reaction buttons (emotions, feedback, questions) for live improvisation |
 | **Maison** | Alternate activity set (symbolic play, mime, manual activities, daily life) |
 | **RobotAct** | Theatre/performance page with expression and posture buttons, a walk joystick, a head-look joystick, and volume **+** / **−** buttons |
+| **Vocal** | Browser microphone → server-side Whisper transcription → robot repeats or executes a voice command |
 
 All category labels in the UI use the generic term **"Le robot"** and are not tied to any specific robot model.
+
+### Vocal tab
+
+The Vocal tab lets the operator speak into the browser microphone and have the robot react.
+
+**Modes:**
+- **Répéter** — the robot repeats the transcribed speech verbatim. Whisper runs with natural speech settings (unbiased, temperature 0.2).
+- **Commander** — Whisper runs with deterministic settings (temperature 0, vocabulary-biased prompt) and the transcribed text is matched against 57+ French voice commands. On a match the corresponding motion, emotion, walk, or motor action is dispatched; on no match the text is spoken.
+
+**Speed slider** (0.1 – 1.0, persisted in localStorage): scales the speed of motion commands sent from the Vocal tab, mirroring the volume slider behaviour on RobotAct.
+
+**Setup:** The Vocal tab requires the browser to be on the same HTTPS origin as the WOZ server. Open `https://<bridge-ip>:5555` (note the `https://`), accept the self-signed certificate warning once, then the mic permission prompt will appear normally on any device.
+
+**Server-side transcription:** `faster-whisper` (model: `small`, CPU, int8) is loaded lazily at first use and pre-warmed in a background thread at startup. Audio is recorded in the browser using the `MediaRecorder` API (works in Firefox, Chrome, and Safari) and uploaded as a blob to `/woz_transcribe`.
 
 ### State machine
 
@@ -344,7 +386,7 @@ ros2 topic pub --once /robot_cmd ros2_robot_bridge/msg/RobotCmd \
 
 One-shot gestures run once and return to neutral. **Infinite-loop gestures** (marked ∞) run until interrupted by any other `move` command. Only the joints used by each gesture are stiffened — relaxed body parts remain relaxed.
 
-> **Pepper:** `ALAutonomousLife` is permanently disabled when the bridge connects. It is never re-enabled during the session. `wakeUp()` is called once to engage the motors.
+> **Pepper:** `ALAutonomousLife` is disabled when the bridge connects and re-disabled after every command dispatch (Pepper's tablet re-enables it on interaction). The keepalive timer also checks every 60 s and disables it if it was re-enabled externally. `wakeUp()` is called once at connect to engage the motors.
 
 ```bash
 ros2 topic pub --once /robot_cmd ros2_robot_bridge/msg/RobotCmd \
@@ -1310,15 +1352,19 @@ ros2_robot_bridge/
 │   ├── scenarios.html
 │   ├── reactions.html
 │   ├── theatre.html
-│   └── maison.html
+│   ├── maison.html
+│   └── vocal.html                 # Vocal tab (mic button, mode toggle, speed slider, history)
 ├── woz_static/                    # JS/CSS/image assets served by Flask
 │   ├── woz.js / woz.css           # Core UI logic and styles
 │   ├── scenarios.js               # Button definitions for the Scenarios tab
 │   ├── reactions.js               # Button definitions for the Réactions tab
 │   ├── theatre.js                 # Button definitions for the RobotAct tab
-│   └── maison.js                  # Button definitions for the Maison tab
+│   ├── maison.js                  # Button definitions for the Maison tab
+│   └── vocal.js                   # Vocal tab: MediaRecorder, Whisper client, command dispatch
 └── launch/
     └── robot_bridge.launch.py     # Single launch file for all robots
+requirements.txt                   # pip dependencies (flask, roslibpy, pyopenssl, faster-whisper)
+setup.sh                           # Bootstrap script for fresh Ubuntu 22.04 / Jetson systems
 ```
 
 ### robot_detector.py
@@ -1382,7 +1428,11 @@ All gesture and behavior calls run in daemon threads so the ROS spin loop is nev
 
 #### Stiffness control
 
-`relax`/`stiffen` call `ALMotion.setStiffnesses()`. `ALAutonomousLife` is permanently disabled at connect time (not per command), so it cannot override stiffness changes during the session. Full-body relax calls `ALMotion.rest()` so Pepper's safety system cooperates.
+`relax`/`stiffen` call `ALMotion.setStiffnesses()`. Full-body relax calls `ALMotion.rest()` so Pepper's safety system cooperates.
+
+#### Autonomous life suppression (Pepper)
+
+`ALAutonomousLife` is disabled at connect time and re-disabled after every command via the `_after_cmd` hook defined in `base_bridge.py`. Pepper's tablet re-enables autonomous life whenever the user interacts with it, so the hook runs unconditionally after each dispatch. The keepalive timer (60 s) also checks the state and disables it if re-enabled externally.
 
 ---
 
