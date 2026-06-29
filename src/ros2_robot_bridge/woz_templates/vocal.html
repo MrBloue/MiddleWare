@@ -1,0 +1,73 @@
+<!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Transitional//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-transitional.dtd">
+<html xmlns="http://www.w3.org/1999/xhtml">
+
+<head>
+    <meta http-equiv="Content-Type" content="text/html; charset=utf-8" />
+    <title>Vocal</title>
+    <link href="static/woz.css" rel="stylesheet" type="text/css" />
+    <script src="static/jquery-3.5.1.min.js"></script>
+    <script src="static/woz.js"></script>
+    <script src="static/vocal.js"></script>
+</head>
+
+<body onload="onLoad()">
+
+    <div id="content">
+        <div id="header">
+            <div id="breadcrumb">{{ session['user_name'] }}, {{ session['user_surname'] }}
+                <a href="login"><img src="static/images/back.png" width="3%" alt="back" /></a>
+            </div>
+
+            <div class="tab tab--off">
+            <a href="scenarios">Scénario et Jeux</a></div>
+            <div class="tab tab--off">
+            <a href="reactions">Réactions</a></div>
+            <div class="tab tab--off">
+            <a href="maison">Maison</a></div>
+            <div class="tab tab--off">
+            <a href="theatre">RobotAct</a></div>
+            <div class="tab tab--off">
+            <a href="macros">Macros</a></div>
+            <div class="tab tab--on">
+            <a href="vocal">Vocal</a></div>
+        </div>
+
+        <div id="body">
+            <div id="body-left"></div>
+            <div id="body-right">
+                <img class="bottom_right" src="static/images/info.png" width="15%" alt="info" onClick="showInfo()" />
+            </div>
+
+            <div class="vocal-container">
+
+                <div class="vocal-mode-row">
+                    <button id="mode-repeat" class="vocal-mode-btn vocal-mode-btn--on">🔊 Répéter</button>
+                    <button id="mode-command" class="vocal-mode-btn">🤖 Commander</button>
+                </div>
+
+                <div class="vocal-mode-desc" id="mode-desc-repeat">
+                    Parlez au robot !
+                </div>
+
+                <button id="btn-mic" class="vocal-mic-btn">
+                    <span class="vocal-mic-icon">🎤</span>
+                    <span class="vocal-mic-label">Appuyer pour parler</span>
+                </button>
+
+                <div id="vocal-status" class="vocal-status vocal-status--idle">Prêt</div>
+                <div id="interim-text" class="vocal-interim"></div>
+
+                <div id="history" class="vocal-history"></div>
+
+                <div class="vocal-https-note">
+                    Si le navigateur bloque le micro, acceptez le certificat auto-signé dans l'avertissement de sécurité.
+                </div>
+
+            </div>
+        </div>
+
+        <div id="footer"></div>
+    </div>
+
+</body>
+</html>

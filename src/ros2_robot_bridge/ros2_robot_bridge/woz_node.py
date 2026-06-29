@@ -28,6 +28,7 @@ import math
 import os
 import re
 import socket
+import tempfile
 import threading
 import time
 
@@ -41,6 +42,23 @@ try:
     _HAS_FLASK = True
 except ImportError:
     _HAS_FLASK = False
+
+_whisper_model = None
+_whisper_lock  = threading.Lock()
+
+def _get_whisper():
+    global _whisper_model
+    if _whisper_model is not None:
+        return _whisper_model
+    with _whisper_lock:
+        if _whisper_model is not None:
+            return _whisper_model
+        try:
+            from faster_whisper import WhisperModel
+            _whisper_model = WhisperModel('small', device='cpu', compute_type='int8')
+        except ImportError:
+            pass
+    return _whisper_model
 
 try:
     from ament_index_python.packages import get_package_share_directory as _gpsd
@@ -119,10 +137,11 @@ class WozNode(Node):
             target=self._run_flask, args=(host, port), daemon=True
         )
         flask_thread.start()
+        threading.Thread(target=_get_whisper, daemon=True).start()
         display_host = host if host != '0.0.0.0' else (
             socket.gethostbyname(socket.gethostname())
         )
-        self.get_logger().info(f'[WOZ] Web interface → http://{display_host}:{port}')
+        self.get_logger().info(f'[WOZ] Web interface → https://{display_host}:{port}')
 
         # kick off the initial state
         self._enter_state('begin')
@@ -139,7 +158,15 @@ class WozNode(Node):
         app = Flask(__name__, **kwargs)
         app.secret_key = 'woz'
         _register_routes(app, self)
-        app.run(host=host, port=port, debug=False, use_reloader=False)
+        # Use a self-signed cert so the browser treats the origin as secure,
+        # which is required for microphone access (Web Speech API) on non-localhost.
+        try:
+            import OpenSSL  # noqa: F401
+            ssl_ctx = 'adhoc'
+        except ImportError:
+            self.get_logger().warning('[WOZ] pyopenssl not installed — serving HTTP (mic blocked on LAN). pip install pyopenssl')
+            ssl_ctx = None
+        app.run(host=host, port=port, debug=False, use_reloader=False, ssl_context=ssl_ctx)
 
     # ── State machine ─────────────────────────────────────────────────────────
 
@@ -383,6 +410,49 @@ def _register_routes(app: 'Flask', node: WozNode):
         if not _session_ok():
             return redirect('/')
         return render_template('macros.html')
+
+    @app.route('/vocal')
+    def vocal():
+        if not _session_ok():
+            return redirect('/')
+        return render_template('vocal.html')
+
+    @app.route('/woz_transcribe', methods=['POST'])
+    def woz_transcribe():
+        audio_file = request.files.get('audio')
+        if not audio_file:
+            return jsonify({'error': 'no audio'}), 400
+        model = _get_whisper()
+        if model is None:
+            return jsonify({'error': 'faster-whisper non installé — pip install faster-whisper'}), 503
+        with tempfile.NamedTemporaryFile(suffix='.webm', delete=False) as tmp:
+            audio_file.save(tmp)
+            tmp_path = tmp.name
+        try:
+            # initial_prompt biases Whisper toward known command vocabulary
+            prompt = (
+                'debout, assis, salue, bonjour, applaudis, oui, non, arc, bras ouverts, '
+                'donne, pointe, muscles, câlin, content, heureux, triste, rire, peur, '
+                'confus, timide, excité, colère, réfléchis, danse, guitare, zombie, '
+                'kung fu, avance, recule, gauche, droite, tourne, stop, arrête, '
+                'relax, détends-toi, stiffen, raidis-toi'
+            )
+            segments, _ = model.transcribe(
+                tmp_path,
+                language='fr',
+                initial_prompt=prompt,
+                beam_size=5,
+                vad_filter=True,
+                vad_parameters={'min_silence_duration_ms': 300},
+            )
+            text = ' '.join(s.text.strip() for s in segments)
+            node.get_logger().info(f'[WOZ] Whisper heard: {text!r}')
+            return jsonify({'text': text})
+        except Exception as exc:
+            node.get_logger().warning(f'[WOZ] Whisper error: {exc}')
+            return jsonify({'error': str(exc)}), 500
+        finally:
+            os.unlink(tmp_path)
 
     @app.route('/woz', methods=['POST'])
     def woz():
