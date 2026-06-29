@@ -578,6 +578,11 @@ def _register_routes(app: 'Flask', node: WozNode):
         if slot is None:
             return redirect('/robots')
         if request.method == 'POST':
+            if not slot.connected:
+                return render_template('login.html', rid=rid, robot_ip=slot.host,
+                                       robot_type=slot.robot_type,
+                                       connecting=slot.connecting,
+                                       conn_error=slot.error or 'Robot non connecté')
             fname  = request.form.get('fname', '').strip()
             lname  = request.form.get('lname', '').strip()
             fname2 = request.form.get('fname2', '').strip()
@@ -591,7 +596,8 @@ def _register_routes(app: 'Flask', node: WozNode):
             return redirect(f'/r/{rid}/scenarios')
         return render_template('login.html', rid=rid, robot_ip=slot.host,
                                robot_type=slot.robot_type,
-                               connecting=slot.connecting, error=False)
+                               connecting=slot.connecting,
+                               conn_error=slot.error)
 
     @app.route('/r/<int:rid>/')
     def robot_root(rid):

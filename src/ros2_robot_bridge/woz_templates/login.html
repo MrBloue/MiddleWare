@@ -29,6 +29,9 @@
 				<p style="color:#555; text-align:center;">Connexion au robot {{ robot_ip }} en cours…<br>
 				<small>La page se rafraîchira automatiquement.</small></p>
 				<script>setTimeout(function(){ location.reload(); }, 2000);</script>
+				{% elif conn_error %}
+				<p style="color:#cc0000; text-align:center;">Connexion échouée : {{ conn_error }}<br>
+				<small><a href="/robots">← Retour à la liste des robots</a></small></p>
 				{% else %}
 				<form action="/r/{{ rid }}/login" method='post' onsubmit="return verify()" >
 					<h1>Indiquez votre prénom :</h1>
