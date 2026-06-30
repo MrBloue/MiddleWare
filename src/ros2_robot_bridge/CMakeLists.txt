@@ -37,6 +37,7 @@ install(FILES
   ros2_robot_bridge/base_bridge.py
   ros2_robot_bridge/base_sensor.py
   ros2_robot_bridge/woz_states.py
+  ros2_robot_bridge/nao_behavior_tables.py
   DESTINATION ${PYTHON_INSTALL_DIR}/${PROJECT_NAME}
 )
 

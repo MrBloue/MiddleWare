@@ -98,7 +98,7 @@ function sendForTranscription(blob) {
     var formData = new FormData();
     formData.append('audio', blob, 'audio.webm');
     $.ajax({
-        url: '/woz_transcribe',
+        url: WOZ_BASE + '/woz_transcribe',
         type: 'POST',
         data: formData,
         processData: false,
@@ -156,7 +156,7 @@ function dispatch(text) {
 }
 
 function sendPost(payload) {
-    $.ajax({ url: '/woz', type: 'POST', contentType: 'application/json',
+    $.ajax({ url: WOZ_BASE + '/woz', type: 'POST', contentType: 'application/json',
              data: JSON.stringify(payload) });
 }
 
