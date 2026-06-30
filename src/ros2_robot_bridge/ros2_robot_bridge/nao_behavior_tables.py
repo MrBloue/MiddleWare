@@ -970,3 +970,7 @@ QT_TO_NAO_BEHAVIOR = {
     "qt/kiss":                         "love_you",
     "qt/face":                         "hide_eyes",
 }
+
+# GESTURES aliases for BEHAVIORS names that may not be installed on all NAOs.
+# These allow _do_move to fall back to joint-angle sequences when runBehavior fails.
+GESTURES["applause"] = GESTURES["clapping"]
