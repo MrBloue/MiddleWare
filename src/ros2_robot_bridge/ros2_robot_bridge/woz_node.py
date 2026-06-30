@@ -31,6 +31,11 @@ except ImportError:
     _HAS_FLASK = False
 
 import ros2_robot_bridge.woz_states as _s  # noqa: E402
+from ros2_robot_bridge.nao_behavior_tables import (  # noqa: E402
+    BEHAVIORS as _NAO_BEHAVIORS,
+    QT_TO_NAO_BEHAVIOR as _QT_TO_NAO_BEHAVIOR,
+    QT_TO_NAO_MOTION as _QT_TO_NAO_MOTION,
+)
 
 # ── Whisper (lazy) ────────────────────────────────────────────────────────────
 
@@ -288,33 +293,30 @@ class _RobotSlot:
             self._motion.setAngles(joints, angles, max(0.05, speed))
             return
 
-        # Named gesture / behavior — resolve via nao_bridge tables
+        # Named gesture / behavior — resolve via nao_behavior_tables
         if self._behavior:
             try:
-                from ros2_robot_bridge.nao_bridge import (
-                    BEHAVIORS, QT_TO_NAO_BEHAVIOR, QT_TO_NAO_MOTION,
-                )
-                if motion_name in BEHAVIORS:
-                    self._behavior.runBehavior(BEHAVIORS[motion_name])
+                if motion_name in _NAO_BEHAVIORS:
+                    self._behavior.runBehavior(_NAO_BEHAVIORS[motion_name])
                     return
-                if motion_name in QT_TO_NAO_BEHAVIOR:
-                    nao_name = QT_TO_NAO_BEHAVIOR[motion_name]
-                    if nao_name and nao_name in BEHAVIORS:
-                        self._behavior.runBehavior(BEHAVIORS[nao_name])
+                if motion_name in _QT_TO_NAO_BEHAVIOR:
+                    nao_name = _QT_TO_NAO_BEHAVIOR[motion_name]
+                    if nao_name and nao_name in _NAO_BEHAVIORS:
+                        self._behavior.runBehavior(_NAO_BEHAVIORS[nao_name])
                         return
-                if motion_name in QT_TO_NAO_MOTION:
-                    nao_name = QT_TO_NAO_MOTION[motion_name]
-                    if nao_name and nao_name in BEHAVIORS:
-                        self._behavior.runBehavior(BEHAVIORS[nao_name])
+                if motion_name in _QT_TO_NAO_MOTION:
+                    nao_name = _QT_TO_NAO_MOTION[motion_name]
+                    if nao_name and nao_name in _NAO_BEHAVIORS:
+                        self._behavior.runBehavior(_NAO_BEHAVIORS[nao_name])
                         return
-            except Exception:
-                pass
+            except Exception as exc:
+                self._log.warning(f'[WOZ] Slot {self.rid} runBehavior error ({motion_name}): {exc}')
             # Last resort: try running as a raw behavior path
             try:
                 if self._behavior.isBehaviorInstalled(motion_name):
                     self._behavior.runBehavior(motion_name)
-            except Exception:
-                pass
+            except Exception as exc:
+                self._log.warning(f'[WOZ] Slot {self.rid} raw behavior error ({motion_name}): {exc}')
 
     def _do_display(self, emotion: str, led_name: str, color: str):
         if not self._leds:
