@@ -49,6 +49,7 @@ var mediaRecorder = null;
 var audioChunks = [];
 var isRecording = false;
 var currentMode = 'repeat';
+var currentSpeed = parseFloat(localStorage.getItem('woz_vocal_speed') || '0.5');
 
 function startRecording() {
     navigator.mediaDevices.getUserMedia({ audio: true })
@@ -138,7 +139,7 @@ function dispatch(text) {
         var cmd = VOICE_COMMANDS[i];
         for (var j = 0; j < cmd.words.length; j++) {
             if (norm.indexOf(normalize(cmd.words[j])) !== -1) {
-                if (cmd.motion)   sendPost({ motion: cmd.motion });
+                if (cmd.motion)   sendPost({ motion: cmd.motion, speed: currentSpeed });
                 if (cmd.relax)    sendPost({ relax: true });
                 if (cmd.stiffen)  sendPost({ stiffen: true });
                 setStatus('idle', '✓ « ' + text + ' » → ' + cmd.words[j]);
@@ -185,6 +186,16 @@ function onLoad() {
         return;
     }
     setStatus('idle', 'Prêt');
+
+    var slider = document.getElementById('speed-slider');
+    var speedDisplay = document.getElementById('speed-value');
+    slider.value = currentSpeed;
+    speedDisplay.textContent = currentSpeed.toFixed(2);
+    slider.addEventListener('input', function() {
+        currentSpeed = parseFloat(slider.value);
+        speedDisplay.textContent = currentSpeed.toFixed(2);
+        localStorage.setItem('woz_vocal_speed', String(currentSpeed));
+    });
 
     document.getElementById('btn-mic').addEventListener('click', function() {
         if (isRecording) {
