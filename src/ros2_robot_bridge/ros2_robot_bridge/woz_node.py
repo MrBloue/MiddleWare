@@ -35,6 +35,7 @@ from ros2_robot_bridge.nao_behavior_tables import (  # noqa: E402
     BEHAVIORS as _NAO_BEHAVIORS,
     QT_TO_NAO_BEHAVIOR as _QT_TO_NAO_BEHAVIOR,
     QT_TO_NAO_MOTION as _QT_TO_NAO_MOTION,
+    GESTURES as _NAO_GESTURES,
 )
 
 # ── Whisper (lazy) ────────────────────────────────────────────────────────────
@@ -315,8 +316,24 @@ class _RobotSlot:
             try:
                 if self._behavior.isBehaviorInstalled(motion_name):
                     self._behavior.runBehavior(motion_name)
+                    return
             except Exception as exc:
                 self._log.warning(f'[WOZ] Slot {self.rid} raw behavior error ({motion_name}): {exc}')
+
+        # Joint-angle gesture sequences (wave, nod, shake_head, arms_open, peekaboo, …)
+        if motion_name in _NAO_GESTURES and self._motion:
+            gesture = _NAO_GESTURES[motion_name]
+            steps = gesture if isinstance(gesture, list) else (
+                gesture.get('init', []) + gesture.get('loop', []) + gesture.get('cleanup', [])
+            )
+            try:
+                for joint_names, joint_angles, step_speed, pause in steps:
+                    self._motion.angleInterpolationWithSpeed(
+                        list(joint_names), [float(a) for a in joint_angles], float(step_speed))
+                    if pause > 0:
+                        time.sleep(pause)
+            except Exception as exc:
+                self._log.warning(f'[WOZ] Slot {self.rid} gesture error ({motion_name}): {exc}')
 
     def _do_display(self, emotion: str, led_name: str, color: str):
         if not self._leds:
