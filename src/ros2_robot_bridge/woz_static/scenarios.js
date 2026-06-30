@@ -1,31 +1,31 @@
 var groupsList = [
-	["static/images/scenario/g2465.png","Jeux \"Sous-marin\" et \"Archéologue\""],//à modifier
-	["static/images/scenario/drapeau.png","Jeux \"Drapeaux\" et \"Alphabet\""],//à modifier
-	["static/images/scenario/zoo.png","Jeu \"Zoo\""],
-	["static/images/scenario/chim3.png","Jeu \"Chimiste\""],
-	["static/images/scenario/copter.png", "Jeu \"Hélicoptère\""],
-	["static/images/scenario/apprenti.png","Jeu \"Apprenti\""],
-	["static/images/scenario/g2270.png", "Jeu \"Jus\""],//à modifier
-	["static/images/scenario/mongolf.png", "Jeu \"Poursuite\""],
-	["static/images/scenario/start.png", "Le robot lance la séance"],
-	["static/images/scenario/explain.png", "Le robot explique son scénario"],
-	["static/images/scenario/rythme3.png", "Le robot gère le rythme au sein de la séance"],
-	["static/images/scenario/end.png","Le robot conclue la séance"]
+	["/static/images/scenario/g2465.png","Jeux \"Sous-marin\" et \"Archéologue\""],//à modifier
+	["/static/images/scenario/drapeau.png","Jeux \"Drapeaux\" et \"Alphabet\""],//à modifier
+	["/static/images/scenario/zoo.png","Jeu \"Zoo\""],
+	["/static/images/scenario/chim3.png","Jeu \"Chimiste\""],
+	["/static/images/scenario/copter.png", "Jeu \"Hélicoptère\""],
+	["/static/images/scenario/apprenti.png","Jeu \"Apprenti\""],
+	["/static/images/scenario/g2270.png", "Jeu \"Jus\""],//à modifier
+	["/static/images/scenario/mongolf.png", "Jeu \"Poursuite\""],
+	["/static/images/scenario/start.png", "Le robot lance la séance"],
+	["/static/images/scenario/explain.png", "Le robot explique son scénario"],
+	["/static/images/scenario/rythme3.png", "Le robot gère le rythme au sein de la séance"],
+	["/static/images/scenario/end.png","Le robot conclue la séance"]
 ]
 
 var infoList = [
-	["static/images/arrow/startarrow.png", ""],	
-	["static/images/arrow/tiltarrow.png", ""],
-	["static/images/arrow/hautgaucheboucle.png", ""],
-	["static/images/arrow/hautplein.png", ""],
-	["static/images/arrow/pressurearrow.png", ""],
-	["static/images/arrow/ghghgh.png", ""],
-	["static/images/arrow/twisterarrow.png", ""],
-	["static/images/arrow/vert1.png", ""],
-	["static/images/arrow/scribble-1.png", ""],
-	["static/images/arrow/rouge.png", ""],
-	["static/images/arrow/basgauche.png", ""],
-	["static/images/arrow/jaune.png", ""]
+	["/static/images/arrow/startarrow.png", ""],	
+	["/static/images/arrow/tiltarrow.png", ""],
+	["/static/images/arrow/hautgaucheboucle.png", ""],
+	["/static/images/arrow/hautplein.png", ""],
+	["/static/images/arrow/pressurearrow.png", ""],
+	["/static/images/arrow/ghghgh.png", ""],
+	["/static/images/arrow/twisterarrow.png", ""],
+	["/static/images/arrow/vert1.png", ""],
+	["/static/images/arrow/scribble-1.png", ""],
+	["/static/images/arrow/rouge.png", ""],
+	["/static/images/arrow/basgauche.png", ""],
+	["/static/images/arrow/jaune.png", ""]
 ]
 
 var textList = [

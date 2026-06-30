@@ -2,6 +2,8 @@
 // and Ana Tudor: https://stackoverflow.com/questions/12813573/position-icons-into-circle
 // https://css-tricks.com/snippets/sass/placing-items-circle/
 
+var WOZ_BASE = (typeof WOZ_RID !== 'undefined') ? '/r/' + WOZ_RID : '';
+
 let StickStatus =
 {
     xPosition: 0,
@@ -359,7 +361,7 @@ var JoyStick = (function(container, parameters, callback)
     this.GetDir = function() {
         const dir = getCardinalDirection();
         if (dir !== prevDir/* && dir !== 'center'*/) {
-            const url_path = "/woz";
+            const url_path = WOZ_BASE + "/woz";
             var xhttp = new XMLHttpRequest();
     
             var joystickPayload = { "direction": dir };
@@ -744,7 +746,7 @@ let prevWalk = "";
 this.GetDir = function() {
     const walking = getCardinalDirection();
     if (walking !== prevWalk/* && walking !== 'stop'*/) {
-        const url_path = "/woz";
+        const url_path = WOZ_BASE + "/woz";
         var xhttp = new XMLHttpRequest();
 
         var joysticWalkPayload = { "walk": walking };
@@ -985,7 +987,7 @@ function commandButtonClick( g_id, c_id) {
 
 	
 	//alert(command);
-	const url_path = "/woz";
+	const url_path = WOZ_BASE + "/woz";
 	var xhttp = new XMLHttpRequest();
 
 	// the data sent to flask
@@ -1046,7 +1048,7 @@ function initSharedControls() {
     function sendVolume() {
         localStorage.setItem('woz_volume', String(level));
         document.getElementById('volume-level').textContent = level;
-        $.ajax({ url: '/woz', type: 'POST', contentType: 'application/json',
+        $.ajax({ url: WOZ_BASE + '/woz', type: 'POST', contentType: 'application/json',
                  data: JSON.stringify({ volume: level }) });
     }
     document.getElementById('volume-up').addEventListener('click', function() {
@@ -1064,7 +1066,7 @@ function initSharedControls() {
     stop.className = 'emergency-stop';
     stop.textContent = '⛔ STOP';
     stop.addEventListener('click', function() {
-        $.ajax({ url: '/woz', type: 'POST', contentType: 'application/json',
+        $.ajax({ url: WOZ_BASE + '/woz', type: 'POST', contentType: 'application/json',
                  data: JSON.stringify({ relax: true }) });
     });
     document.body.appendChild(stop);

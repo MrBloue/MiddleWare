@@ -131,21 +131,21 @@ function sendActions(item) {
         var speed    = typeof m === 'object' ? (parseFloat(m.speed)    || 0.5) : 0.5;
         var duration = typeof m === 'object' ? (parseFloat(m.duration) || 3.0) : 3.0;
         setTimeout(function() {
-            $.ajax({ url: '/woz', type: 'POST', contentType: 'application/json',
+            $.ajax({ url: WOZ_BASE + '/woz', type: 'POST', contentType: 'application/json',
                      data: JSON.stringify({ motion: name, speed: speed }) });
         }, delay * 1000);
         delay += duration;
     });
     if (item.emotion) {
-        $.ajax({ url: '/woz', type: 'POST', contentType: 'application/json',
+        $.ajax({ url: WOZ_BASE + '/woz', type: 'POST', contentType: 'application/json',
                  data: JSON.stringify({ emotion: item.emotion }) });
     }
     if (item.led_name) {
-        $.ajax({ url: '/woz', type: 'POST', contentType: 'application/json',
+        $.ajax({ url: WOZ_BASE + '/woz', type: 'POST', contentType: 'application/json',
                  data: JSON.stringify({ led_name: item.led_name, led_color: item.led_color || '#ffffff' }) });
     }
     if (item.speak) {
-        $.ajax({ url: '/woz', type: 'POST', contentType: 'application/json',
+        $.ajax({ url: WOZ_BASE + '/woz', type: 'POST', contentType: 'application/json',
                  data: JSON.stringify({ speak_text: item.speak }) });
     }
 }
@@ -177,7 +177,7 @@ function renderQuick() {
         btn.className = 'macro-btn';
         btn.textContent = item[0];
         btn.onclick = function() {
-            $.ajax({ url: '/woz', type: 'POST', contentType: 'application/json',
+            $.ajax({ url: WOZ_BASE + '/woz', type: 'POST', contentType: 'application/json',
                      data: JSON.stringify({ motion: item[1] }) });
         };
         container.appendChild(btn);
@@ -299,11 +299,11 @@ function onLoad() {
     });
 
     document.getElementById('btn-relax').addEventListener('click', function() {
-        $.ajax({ url: '/woz', type: 'POST', contentType: 'application/json',
+        $.ajax({ url: WOZ_BASE + '/woz', type: 'POST', contentType: 'application/json',
                  data: JSON.stringify({ relax: true }) });
     });
     document.getElementById('btn-stiffen').addEventListener('click', function() {
-        $.ajax({ url: '/woz', type: 'POST', contentType: 'application/json',
+        $.ajax({ url: WOZ_BASE + '/woz', type: 'POST', contentType: 'application/json',
                  data: JSON.stringify({ stiffen: true }) });
     });
 
