@@ -138,22 +138,21 @@ The WOZ interface lets an operator remote-control the robot from a browser durin
 
 ### Enable
 
-Pass `woz:=true` to any launch command. Robot connection details are optional at launch — they can be set (or changed) from the browser via the connect page:
+Pass `woz:=true` to any launch command:
 
 ```bash
-# Launch with defaults — configure the robot from the browser
 ros2 launch ros2_robot_bridge robot_bridge.launch.py woz:=true
-
-# Or pre-configure everything at launch
-ros2 launch ros2_robot_bridge robot_bridge.launch.py \
-    robot_type:=nao robot_version:=v5 naoqi_host:=192.168.24.59 woz:=true
 ```
 
-Then open `http://<bridge-machine-ip>:5555` in a browser on the same network.
+Then open `https://<bridge-machine-ip>:5555` in a browser on the same network. Accept the self-signed certificate warning once (required for HTTPS — see the note under Prerequisites).
 
-### Connect page
+### Multi-robot support
 
-The browser always lands on `/connect` first. Fill in:
+The WOZ supports **multiple simultaneous robot connections**. Each robot gets its own isolated session at `/r/<rid>/`, with its own qi connection, proxies, and login state.
+
+### Robots page (`/robots`)
+
+The browser always lands on `/robots` first. This page lists all currently connected robots and provides a form to add a new one. Fill in:
 
 - **Type** — `nao`, `pepper`, or `qtrobot`
 - **Version** — version choices update automatically based on type
@@ -161,11 +160,10 @@ The browser always lands on `/connect` first. Fill in:
 
 On submit the WOZ:
 1. Verifies the robot is reachable on its expected port (9559 for NAO/Pepper, 9090 for QTrobot).
-2. Publishes the new host to the `nao_reconnect` topic — `nao_bridge` reconnects immediately without restarting.
-3. Publishes the new type+version to the `robot_reconfig` topic — `robot_detector` updates its config and republishes `robot_config`.
-4. Waits up to 8 s for `command_dispatcher` to confirm the new robot is ready, then redirects to the login page.
+2. Opens a dedicated qi session for the new robot in a background thread.
+3. Redirects to `/r/<rid>/login` for that robot.
 
-If the robot is already connected, a **"Continuer sans changer"** link skips the form.
+Robots can be disconnected individually from the `/robots` page. The live robot list is also available as JSON at `/robots/status`.
 
 ### Login
 
@@ -228,7 +226,7 @@ NAO-compatible tags that pass through unchanged: `\pau=N\` (pause ms), `\rspd=N\
 
 ### Gesture and emotion mapping (NAO / Pepper)
 
-`qt/...` and `QT/...` gesture paths from `woz_states.py` are translated to NAO equivalents via two dicts in `nao_bridge.py`:
+`qt/...` and `QT/...` gesture paths from `woz_states.py` are translated to NAO equivalents via two dicts in `nao_behavior_tables.py`:
 
 - **`QT_TO_NAO_BEHAVIOR`** — maps to a `BEHAVIORS` or `GESTURES` key for execution.
 - **`QT_TO_NAO_MOTION`** — maps to a `GESTURES` key, or `None` to silently skip (used for QT-specific paths that have no meaningful NAO equivalent).
@@ -451,6 +449,8 @@ ros2 topic pub --once /robot_cmd ros2_robot_bridge/msg/RobotCmd \
 ### Built-in NAOqi Behaviors (NAO / Pepper)
 
 Runs behaviors installed on the robot via `ALBehaviorManager`. The names below are pre-mapped and confirmed on a NAO H25 v5 with NAOqi 2.1.4. Names not listed can still be run using the `behavior:` escape hatch.
+
+If a behavior is not installed on the target robot, the WOZ falls through to the `GESTURES` table automatically. For example, `applause` maps to `animations/Stand/Gestures/Applause_1`; on NAOs that don't have this behavior pack, it falls back to the `clapping` joint-sequence gesture.
 
 ```bash
 ros2 topic pub --once /robot_cmd ros2_robot_bridge/msg/RobotCmd \
@@ -1141,7 +1141,7 @@ ssh nao@<NAO_IP> "naoqi --version 2>/dev/null | head -3"
 | `/joint_angles` | `JointAnglesWithSpeed` | NAO/Pepper joint fallback (when qi not available) |
 | `/cmd_vel` | `geometry_msgs/Twist` | Walking fallback (when qi not available) |
 
-> **Note:** `nao_reconnect` and `robot_reconfig` are relative topics (namespaced). They let the WOZ connect page switch robots at runtime using ROS2 topic messages instead of `ros2 param set` subprocesses, which are unreliable under DDS discovery constraints.
+> **Note:** `nao_reconnect` and `robot_reconfig` are retained for backwards compatibility with single-robot setups. In multi-robot WOZ mode, each `_RobotSlot` manages its own qi session directly — robot switching is handled by adding/removing slots on the `/robots` page rather than by republishing these topics.
 
 ---
 
@@ -1340,19 +1340,22 @@ ros2_robot_bridge/
 │   ├── qt_bridge.py               # QTrobot command executor
 │   ├── nao_sensors.py             # NAO / Pepper sensor publisher (ALMemory polling via qi)
 │   ├── qt_sensor.py               # QTrobot sensor bridge (ROS1 → ROS2 via roslibpy)
-│   ├── woz_node.py                # Wizard-of-Oz Flask web interface node
+│   ├── woz_node.py                # Wizard-of-Oz Flask web interface node (multi-robot)
 │   ├── woz_states.py              # WOZ state machine (behaviors and auto-transitions)
+│   ├── nao_behavior_tables.py     # Pure-data tables: BEHAVIORS, GESTURES, QT_TO_NAO_* dicts
 │   ├── robot_bridge_template.py   # Starting point for new robot adapters (command bridge)
 │   └── robot_sensor_template.py   # Starting point for new robot sensor nodes
 ├── msg/
 │   ├── RobotCmd.msg               # Universal command message
 │   └── RobotConfig.msg            # Active robot description
 ├── woz_templates/                 # Flask HTML templates for the WOZ interface
+│   ├── robots.html                # Robot list and add-robot form (landing page)
 │   ├── login.html
 │   ├── scenarios.html
 │   ├── reactions.html
 │   ├── theatre.html
 │   ├── maison.html
+│   ├── macros.html                # Macro/gesture buttons tab
 │   └── vocal.html                 # Vocal tab (mic button, mode toggle, speed slider, history)
 ├── woz_static/                    # JS/CSS/image assets served by Flask
 │   ├── woz.js / woz.css           # Core UI logic and styles
@@ -1433,6 +1436,54 @@ All gesture and behavior calls run in daemon threads so the ROS spin loop is nev
 #### Autonomous life suppression (Pepper)
 
 `ALAutonomousLife` is disabled at connect time and re-disabled after every command via the `_after_cmd` hook defined in `base_bridge.py`. Pepper's tablet re-enables autonomous life whenever the user interacts with it, so the hook runs unconditionally after each dispatch. The keepalive timer (60 s) also checks the state and disables it if re-enabled externally.
+
+---
+
+### nao_behavior_tables.py
+
+**Role:** Pure-data module shared by `nao_bridge.py` and `woz_node.py`. Contains no ROS or qi imports so it can be loaded in any process without triggering SDK import failures.
+
+| Dict | Contents |
+|------|----------|
+| `BEHAVIORS` | ~391 entries mapping short names → installed NAOqi behavior paths (`animations/Stand/...`) |
+| `GESTURES` | ~50 named joint-angle sequences executed via `ALMotion.angleInterpolationWithSpeed()`. Dict-type gestures have `init`/`loop`/`cleanup` phases. |
+| `QT_TO_NAO_BEHAVIOR` | Maps QTrobot gesture paths to `BEHAVIORS` keys |
+| `QT_TO_NAO_MOTION` | Maps QTrobot gesture paths to `GESTURES` keys (`None` = silently skip) |
+
+`GESTURES["applause"]` is aliased to `GESTURES["clapping"]` so `applause` degrades gracefully on NAOs that don't have the `Applause_1` behavior pack installed.
+
+---
+
+### woz_node.py
+
+**Role:** Flask web server embedded in a ROS2 node. Manages multiple simultaneous robot connections, each with its own qi session and Flask session namespace.
+
+#### Multi-robot architecture
+
+Each connected robot is represented by a `_RobotSlot` instance that owns:
+- A `qi.Session` and six service proxies (same set as `nao_bridge.py`)
+- An independent login state and child/therapist name
+- A per-slot URL namespace `/r/<rid>/...`
+
+Slots are created via `WozNode.add_robot()` (called from the `/robots` POST handler) and removed via `remove_robot()`. A `threading.Lock` protects the `_robots` dict. The `/robots/status` endpoint returns the live slot list as JSON.
+
+#### Motion resolution in `_RobotSlot._do_move`
+
+Runs in a daemon thread. Resolution order:
+
+1. **`_SLOT_POSTURES`** — `ALRobotPosture.goToPosture()` (stand, sit, …)
+2. **`_SLOT_WALK`** — `ALMotion.moveToward()` (walk_forward, stop, …)
+3. **`Joint:angle,...`** format — raw joint control via `ALMotion.setAngles()`
+4. **`_NAO_BEHAVIORS`** — `ALBehaviorManager.runBehavior()` via `nao_behavior_tables`
+5. **`QT_TO_NAO_BEHAVIOR` / `QT_TO_NAO_MOTION`** — QTrobot path translation, then BEHAVIORS lookup
+6. **Last resort** — `isBehaviorInstalled()` + `runBehavior()` for raw paths
+7. **`_NAO_GESTURES`** — joint-angle step sequences from `nao_behavior_tables.GESTURES`
+
+If a behavior fails with "not installed", execution falls through to the GESTURES check automatically. All errors are logged at WARNING level.
+
+#### TTS and state machine
+
+Button presses send a state name to `/r/<rid>/woz`. The slot looks up the state in `woz_states.py`, strips QTrobot-specific markup, and dispatches `speak`/`move`/`display` commands directly via qi (bypassing the ROS2 topic pipeline). Auto-transitions use a per-slot timer that can be cancelled by any new button press.
 
 ---
 
