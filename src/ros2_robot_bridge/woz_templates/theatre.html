@@ -4,10 +4,11 @@
 <head>
     <meta http-equiv="Content-Type" content="text/html; charset=utf-8" />
     <title>RobotAct</title>
-    <link href="static/woz.css" rel="stylesheet" type="text/css" />
-    <script src="static/jquery-3.5.1.min.js"></script>
-    <script src="static/woz.js"></script>
-	<script src="static/theatre.js"></script>
+    <link href="/static/woz.css" rel="stylesheet" type="text/css" />
+    <script src="/static/jquery-3.5.1.min.js"></script>
+    <script>var WOZ_RID = {{ rid }};</script>
+    <script src="/static/woz.js"></script>
+	<script src="/static/theatre.js"></script>
     
 </head>
 
@@ -15,31 +16,34 @@
 
     <div id="content">
         <div id="header">
-			<div id="breadcrumb">{{ session['user_name'] }}, {{ session['user_surname'] }}
-				<a href="login"><img src="static/images/back.png" width="3%" alt="back" /></a>
+			<div id="breadcrumb">{{ child_name }}
+				<a href="/robots"><img src="/static/images/back.png" width="3%" alt="back" /></a>
 			</div>
 
             <div class="tab tab--off">
-            <a href="scenarios">Scénario et Jeux</a> </div>
+            <a href="/r/{{ rid }}/scenarios">Scénario et Jeux</a></div>
             <div class="tab tab--off">
-            <a href="reactions">Réactions</a> </div>
-            <div class="tab tab--off"> 
-            <a href="maison">Maison</a> </div> 
+            <a href="/r/{{ rid }}/reactions">Réactions</a></div>
+            <div class="tab tab--off">
+            <a href="/r/{{ rid }}/maison">Maison</a></div>
             <div class="tab tab--on">
-            <a href="theatre">RobotAct</a> </div>
-  
+            <a href="/r/{{ rid }}/theatre">RobotAct</a></div>
+            <div class="tab tab--off">
+            <a href="/r/{{ rid }}/macros">Macros</a></div>
+            <div class="tab tab--off">
+            <a href="/r/{{ rid }}/vocal">Vocal</a></div>
         </div>
     
         <div id="body">            
             <div id="body-left">
             </div>
             <div id="body-right">
-                <img class="bottom_right" src="static/images/info.png" width="15%" alt="info" onClick="showInfo()" />
+                <img class="bottom_right" src="/static/images/info.png" width="15%" alt="info" onClick="showInfo()" />
             </div>
             
             <div class="main-container">
                 <div class='ellipse-container-test1'></div>
-				<div id='spinner-container'> <img src="static/images/spinner.gif"/> </div>
+				<div id='spinner-container'> <img src="/static/images/spinner.gif"/> </div>
 				<div class='group-button-container'></div>
 				<div class='group-info-container'></div>
 				<div class='group-text-container'></div>
@@ -55,12 +59,6 @@
     </div>
 
   
-    <div class="volume-container" id="volume-container">
-        <button class="volume-btn" id="volume-up">+</button>
-        <span class="volume-icon">🔊</span>
-        <button class="volume-btn" id="volume-down">-</button>
-    </div>
-
     <div class="joy3Div" id="joy3Div" ></div>
 
 
@@ -109,24 +107,6 @@
      setInterval(function(){ joy2Y.value=Joy3.GetY(); }, 50);
      </script>
 
-<script type="text/javascript">
-(function() {
-    var level = 50;
-    function sendVolume() {
-        $.ajax({ url: '/woz', type: 'POST',
-                 contentType: 'application/json',
-                 data: JSON.stringify({ volume: level }) });
-    }
-    document.getElementById('volume-up').addEventListener('click', function() {
-        level = Math.min(100, level + 1);
-        sendVolume();
-    });
-    document.getElementById('volume-down').addEventListener('click', function() {
-        level = Math.max(0, level - 1);
-        sendVolume();
-    });
-})();
-</script>
 
 <script><!--
 function onLoad() {

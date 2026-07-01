@@ -1,255 +1,9 @@
 #!/usr/bin/env python3
-# NAO / Pepper bridge adapter.
-# Translates RobotCmd messages into NAOqi service calls via the qi SDK.
-# Falls back to ROS topics (/speech, /joint_angles, /cmd_vel) when qi is unavailable.
-import threading
-import time
-import rclpy
-from std_msgs.msg import String
-from geometry_msgs.msg import Twist
-from naoqi_bridge_msgs.msg import JointAnglesWithSpeed
-from ros2_robot_bridge.base_bridge import RobotBridge
-from ros2_robot_bridge.msg import RobotCmd, RobotConfig
+# Pure-data tables: no ROS/qi imports so woz_node can import them safely.
+#
+# GESTURES: each entry is either a list of (joints, angles_rad, speed, pause_s) steps
+# or a dict {"init": [...], "loop": [...], "cleanup": [...]} for looping gestures.
 
-try:
-    import qi
-    _HAS_QI = True
-except ImportError:
-    _HAS_QI = False
-
-# ROS2 language code → NAOqi language name
-LANG_MAP = {
-    "fr-FR": "French", "fr": "French",
-    "en-US": "English", "en-GB": "English", "en": "English",
-    "de-DE": "German", "de": "German",
-    "es-ES": "Spanish", "es": "Spanish",
-    "it-IT": "Italian", "it": "Italian",
-    "ja-JP": "Japanese", "zh-CN": "Chinese",
-}
-
-# Emotion → RGB for eye LEDs (r, g, b) in 0.0–1.0
-EMOTION_LEDS = {
-    "happy":     (1.0, 1.0, 0.0),
-    "sad":       (0.0, 0.0, 1.0),
-    "angry":     (1.0, 0.0, 0.0),
-    "neutral":   (1.0, 1.0, 1.0),
-    "surprised": (0.0, 1.0, 1.0),
-    "scared":    (0.5, 0.0, 0.5),
-    "excited":   (1.0, 0.5, 0.0),
-}
-
-# QTrobot / universal motion name → NAO gesture name (None = silently ignored).
-QT_TO_NAO_MOTION = {
-    # --- Greetings ---
-    "hi":               "wave",
-    "bye":              "wave",
-    "bye-bye":          "wave",
-    "adieu":            "wave",
-    "send_kiss":        "wave",
-    "kiss":             "wave",
-    # --- Head ---
-    "nodding-yes":      "nod",
-    "yes":              "nod",
-    "thanks":           "nod",
-    "no":               "shake_head",
-    "head-right-left":  "shake_head",
-    "yawn":             "look_up",
-    # --- Arms / body ---
-    "curious":          "think",
-    "bored":            "think",
-    "bored_long":       "think",
-    "point_front":      "point_forward",
-    "come":             "point_forward",
-    "show_left":        "point_forward",
-    "show_right":       "point_forward",
-    "rappel":           "point_forward",
-    "begin":            "point_forward",
-    "one-arm-up":       "arm_up",
-    "up_left":          "arm_up",
-    "up_right":         "arm_up",
-    "hug":              "arms_open",
-    "hands-up":         "arms_open",
-    "hands-side":       "arms_open",
-    "strong":           "arms_open",
-    "challenge":        "arms_open",
-    "stretch":          "arms_open",
-    "hoora":            "yay",
-    "laugh":            "yay",
-    "happy":            "yay",
-    "surprise":         "yay",
-    "refuse":           "refuse",
-    "so_what":          "refuse",
-    "protect":          "refuse",
-    "angry":            "refuse",
-    "so":               "refuse",
-    "hand-front-hold":  "give_hand",
-    "touch-head":       "pat_pat",
-    "clapping":           "clapping",
-    "handclap":           "clapping",
-    "sneezing":           "sneezing",
-    "head_scratch":       "head_scratch",
-    "peekaboo":           "peekaboo",
-    "peekaboo-back":      "peekaboo",
-    "ohno":               "ohno",
-    "hips":               "hips",
-    "hands-on-hip":       "hips",
-    "drink":              "drink",
-    "monkey":             "monkey",
-    "ecrit":              "ecrit",
-    "show_tablet":        "show_tablet",
-    "breathing_exercise": "breathing_exercise",
-    "neutral":            "neutral",
-    "sad":                "sad",
-    "cry":                "sad",
-    "touch-head-back":    "touch_head_back",
-    "hands-on-head":      "hands_on_head",
-    "hands-on-belly":     "hands_on_belly",
-    "personal-distance":  "personal_distance",
-    "premiere_rencontre": "premiere_rencontre",
-    "premiere_recontre":  "premiere_rencontre",
-    "fera_mieux":         "fera_mieux",
-    "grandpa":            "grandpa",
-    "luxai_en":           "luxai_en",
-    "test":               "test",
-    "shy":                "think",
-    # --- QTrobot emotion subfolder names ---
-    "surprised":          "yay",
-    "disgusted":          "refuse",
-    "calm":               "think",
-    "afraid":             "think",
-    # --- QTrobot imitation / hands variants → no direct NAO equivalent ---
-    "hands_side":         None,
-    "hands_side_back":    None,
-    "hands_on_head_back": None,
-    "hands_on_hip_back":  None,
-    "hands_on_belly_back":None,
-    "hands_up_back":      None,
-    # --- QTrobot-only gestures (no NAO equivalent) ---
-    "fly":                None,
-    "beep":               None,
-    "drive":              None,
-    "driving":            None,
-    "beeping":            None,
-    "phone_call":         None,
-    "pretend_play":       None,
-    "show_face":          None,
-    "show_qt":            None,
-    "swipe_right":        None,
-    "swipe_left":         None,
-    "dance":              None,
-    "dance_1_1":          None,
-    "dance_1_2":          None,
-    "dance_1_3":          None,
-    "dance_1_4":          None,
-    "dance_2_1":          None,
-    "dance_2_2":          None,
-    "dance_2_3":          None,
-    "dance_2_4":          None,
-    "dance_3_1":          None,
-    "dance_3_2":          None,
-    "dance_3_3":          None,
-    "dance_4_1":          None,
-    "dance_4_2":          None,
-    "dance_4_3":          None,
-    "dance_4_4":          None,
-    "dance_4_5":          None,
-    "dance_4_6":          None,
-    # --- Custom university package gestures (QTrobot-only) ---
-    "gifle":              None,
-    "kill":               None,
-    "ymca":               None,
-    "dancing_arms":       None,
-    "left_righ":          None,
-    "bla":                None,
-    "soleil":             None,
-    "movinghead":         None,
-    "headright":          None,
-    "headleft":           None,
-    "draw":               None,
-    "tetehaute":          None,
-    "tournepoigne":       None,
-    "hackathon":          None,
-    "fullciao":           None,
-    "ciao":               None,
-    "very_sad":           None,
-    "very_sad2":          None,
-    "tired":              None,
-    # --- QTrobot full-path forms missing from QT_TO_NAO_BEHAVIOR ---
-    "qt/neutral":         None,
-}
-
-# Universal LED group name → NAOqi ALLeds group name
-LED_GROUPS_NAO = {
-    "eyes":       "FaceLeds",
-    "left_eye":   "LeftFaceLeds",
-    "right_eye":  "RightFaceLeds",
-    "ears":       "EarLeds",
-    "left_ear":   "LeftEarLeds",
-    "right_ear":  "RightEarLeds",
-    "chest":      "ChestLeds",
-    "feet":       "FeetLeds",
-    "left_foot":  "LeftFootLeds",
-    "right_foot": "RightFootLeds",
-    "head":       "BrainLeds",
-    "all":        "AllLeds",
-}
-
-# Pepper variant: eyes + shoulders only (no ears/feet/brain)
-LED_GROUPS_PEPPER = {
-    "eyes":          "FaceLeds",
-    "left_eye":      "LeftFaceLeds",
-    "right_eye":     "RightFaceLeds",
-    "chest":         "ChestLeds",
-    "shoulder":      "ShoulderLeds",
-    "left_shoulder": "LeftShoulderLeds",
-    "right_shoulder":"RightShoulderLeds",
-    "all":           "AllLeds",
-}
-
-LED_GROUPS = LED_GROUPS_NAO  # backward-compat alias
-
-# Named color strings → (r, g, b) in 0–255
-LED_COLOR_NAMES = {
-    "red":     (255,   0,   0),
-    "green":   (  0, 255,   0),
-    "blue":    (  0,   0, 255),
-    "white":   (255, 255, 255),
-    "yellow":  (255, 255,   0),
-    "cyan":    (  0, 255, 255),
-    "magenta": (255,   0, 255),
-    "orange":  (255, 128,   0),
-    "purple":  (128,   0, 128),
-    "pink":    (255, 105, 180),
-    "off":     (  0,   0,   0),
-}
-
-def _parse_color(color_str):
-    """'#RRGGBB', 'RRGGBB', or named color → (r, g, b) int tuple, or None."""
-    s = color_str.strip().lower()
-    if s in LED_COLOR_NAMES:
-        return LED_COLOR_NAMES[s]
-    s = s.lstrip("#")
-    if len(s) == 6:
-        try:
-            return (int(s[0:2], 16), int(s[2:4], 16), int(s[4:6], 16))
-        except ValueError:
-            pass
-    return None
-
-# Universal posture name → ALRobotPosture name
-POSTURE_NAMES = {
-    "stand":      "Stand",
-    "standinit":  "StandInit",
-    "standzero":  "StandZero",
-    "sit":        "Sit",
-    "sitrelax":   "SitRelax",
-    "crouch":     "Crouch",
-    "lyingback":  "LyingBack",
-    "lyingbelly": "LyingBelly",
-}
-
-# Custom gesture library. Each entry: list of steps (joints, angles_rad, speed, pause_s).
-# Dict entries use {"init", "loop", "cleanup"} for looping gestures.
 GESTURES = {
     # --- Head ---
     "look_left": [
@@ -270,7 +24,6 @@ GESTURES = {
     ],
     # --- Arms ---
     "arms_open": [
-        # Spread both arms wide open — welcoming gesture
         (["LShoulderPitch", "LShoulderRoll", "LElbowRoll", "LElbowYaw", "LHand",
           "RShoulderPitch", "RShoulderRoll", "RElbowRoll", "RElbowYaw", "RHand"],
          [0.5, 1.0, -0.05, -1.57, 1.0,
@@ -605,7 +358,6 @@ GESTURES = {
         (["LShoulderPitch","RShoulderPitch"], [1.47, 1.47], 0.4, 0.0),
     ],
     "six_seven": {
-        # Pendulum swing: both arms swing together left ↔ right indefinitely
         "init": [
             (["LShoulderPitch","LShoulderRoll","LElbowRoll","LElbowYaw","LHand","LWristYaw",
               "RShoulderPitch","RShoulderRoll","RElbowRoll","RElbowYaw","RHand","RWristYaw"],
@@ -627,8 +379,145 @@ GESTURES = {
     },
 }
 
-# Built-in NAOqi behavior paths (verified on Pepper 2.5).
-# Pass `behavior:<path>` as motion_name to bypass this map entirely.
+QT_TO_NAO_MOTION = {
+    # --- Greetings ---
+    "hi":               "wave",
+    "bye":              "wave",
+    "bye-bye":          "wave",
+    "adieu":            "wave",
+    "send_kiss":        "wave",
+    "kiss":             "wave",
+    # --- Head ---
+    "nodding-yes":      "nod",
+    "yes":              "nod",
+    "thanks":           "nod",
+    "no":               "shake_head",
+    "head-right-left":  "shake_head",
+    "yawn":             "look_up",
+    # --- Arms / body ---
+    "curious":          "think",
+    "bored":            "think",
+    "bored_long":       "think",
+    "point_front":      "point_forward",
+    "come":             "point_forward",
+    "show_left":        "point_forward",
+    "show_right":       "point_forward",
+    "rappel":           "point_forward",
+    "begin":            "point_forward",
+    "one-arm-up":       "arm_up",
+    "up_left":          "arm_up",
+    "up_right":         "arm_up",
+    "hug":              "arms_open",
+    "hands-up":         "arms_open",
+    "hands-side":       "arms_open",
+    "strong":           "arms_open",
+    "challenge":        "arms_open",
+    "stretch":          "arms_open",
+    "hoora":            "yay",
+    "laugh":            "yay",
+    "happy":            "yay",
+    "surprise":         "yay",
+    "refuse":           "refuse",
+    "so_what":          "refuse",
+    "protect":          "refuse",
+    "angry":            "refuse",
+    "so":               "refuse",
+    "hand-front-hold":  "give_hand",
+    "touch-head":       "pat_pat",
+    "clapping":           "clapping",
+    "handclap":           "clapping",
+    "sneezing":           "sneezing",
+    "head_scratch":       "head_scratch",
+    "peekaboo":           "peekaboo",
+    "peekaboo-back":      "peekaboo",
+    "ohno":               "ohno",
+    "hips":               "hips",
+    "hands-on-hip":       "hips",
+    "drink":              "drink",
+    "monkey":             "monkey",
+    "ecrit":              "ecrit",
+    "show_tablet":        "show_tablet",
+    "breathing_exercise": "breathing_exercise",
+    "neutral":            "neutral",
+    "sad":                "sad",
+    "cry":                "sad",
+    "touch-head-back":    "touch_head_back",
+    "hands-on-head":      "hands_on_head",
+    "hands-on-belly":     "hands_on_belly",
+    "personal-distance":  "personal_distance",
+    "premiere_rencontre": "premiere_rencontre",
+    "premiere_recontre":  "premiere_rencontre",
+    "fera_mieux":         "fera_mieux",
+    "grandpa":            "grandpa",
+    "luxai_en":           "luxai_en",
+    "test":               "test",
+    "shy":                "think",
+    # --- QTrobot emotion subfolder names ---
+    "surprised":          "yay",
+    "disgusted":          "refuse",
+    "calm":               "think",
+    "afraid":             "think",
+    # --- QTrobot imitation / hands variants → no direct NAO equivalent ---
+    "hands_side":         None,
+    "hands_side_back":    None,
+    "hands_on_head_back": None,
+    "hands_on_hip_back":  None,
+    "hands_on_belly_back":None,
+    "hands_up_back":      None,
+    # --- QTrobot-only gestures (no NAO equivalent) ---
+    "fly":                None,
+    "beep":               None,
+    "drive":              None,
+    "driving":            None,
+    "beeping":            None,
+    "phone_call":         None,
+    "pretend_play":       None,
+    "show_face":          None,
+    "show_qt":            None,
+    "swipe_right":        None,
+    "swipe_left":         None,
+    "dance":              None,
+    "dance_1_1":          None,
+    "dance_1_2":          None,
+    "dance_1_3":          None,
+    "dance_1_4":          None,
+    "dance_2_1":          None,
+    "dance_2_2":          None,
+    "dance_2_3":          None,
+    "dance_2_4":          None,
+    "dance_3_1":          None,
+    "dance_3_2":          None,
+    "dance_3_3":          None,
+    "dance_4_1":          None,
+    "dance_4_2":          None,
+    "dance_4_3":          None,
+    "dance_4_4":          None,
+    "dance_4_5":          None,
+    "dance_4_6":          None,
+    # --- Custom university package gestures (QTrobot-only) ---
+    "gifle":              None,
+    "kill":               None,
+    "ymca":               None,
+    "dancing_arms":       None,
+    "left_righ":          None,
+    "bla":                None,
+    "soleil":             None,
+    "movinghead":         None,
+    "headright":          None,
+    "headleft":           None,
+    "draw":               None,
+    "tetehaute":          None,
+    "tournepoigne":       None,
+    "hackathon":          None,
+    "fullciao":           None,
+    "ciao":               None,
+    "very_sad":           None,
+    "very_sad2":          None,
+    "tired":              None,
+    # --- QTrobot full-path forms missing from QT_TO_NAO_BEHAVIOR ---
+    "qt/neutral":         None,
+}
+
 BEHAVIORS = {
     # --- Dance / performance ---
     "funny_dancer":       "animations/Stand/Waiting/FunnyDancer_1",
@@ -1082,684 +971,6 @@ QT_TO_NAO_BEHAVIOR = {
     "qt/face":                         "hide_eyes",
 }
 
-# Walking commands → (linear.x, linear.y, angular.z) at full speed
-# Max speeds at speed=1.0: forward/backward 0.35 m/s, lateral 0.2 m/s, rotation 0.5 rad/s
-WALK_CMDS = {
-    "walk_forward":  ( 0.35,  0.0,  0.0),
-    "walk_backward": (-0.35,  0.0,  0.0),
-    "walk_left":     ( 0.0,   0.2,  0.0),
-    "walk_right":    ( 0.0,  -0.2,  0.0),
-    "turn_left":     ( 0.0,   0.0,  0.5),
-    "turn_right":    ( 0.0,   0.0, -0.5),
-    "stop":          ( 0.0,   0.0,  0.0),
-}
-
-
-class NaoBridge(RobotBridge):
-    """NAO / Pepper bridge adapter: qi SDK → NAOqi service calls."""
-
-    SUPPORTED_TYPES = ("nao", "pepper")
-
-    def __init__(self):
-        super().__init__("nao_bridge")
-        # NAOqi connection parameters (set from ROS2 launch args)
-        self.declare_parameter("naoqi_host", "192.168.1.100")
-        self.declare_parameter("naoqi_port", 9559)
-        self.declare_parameter("naoqi_scheme", "tcp")       # tcp or tcps (TLS gateway)
-        self.declare_parameter("naoqi_ssl_cert", "")        # CA cert for tcps
-        # Connection state
-        self._host = ""
-        self._port = 9559
-        self._scheme = "tcp"
-        self._ssl_cert = ""
-        # qi SDK session and service proxies (None when not connected)
-        self._qi_session = None
-        self._posture_proxy = None
-        self._leds_proxy = None
-        self._motion_proxy = None
-        self._tts_proxy = None
-        self._behavior_proxy = None
-        self._gesture_stop = threading.Event()  # set to interrupt a running gesture
-        self._reconnect_lock = threading.Lock()  # prevents concurrent reconnect threads
-        # TTS lock: ensures only one say() call runs at a time so NAOqi doesn't
-        # queue a second speech when the same command slips past the dedup window.
-        # Non-blocking acquire: if TTS is already speaking, drop the duplicate.
-        self._tts_lock = threading.Lock()
-        # Fallback publishers used when qi SDK is unavailable
-        self._speech_pub = self.create_publisher(String, "/speech", 10)
-        self._joint_pub = self.create_publisher(JointAnglesWithSpeed, "/joint_angles", 10)
-        self._cmd_vel_pub = self.create_publisher(Twist, "/cmd_vel", 10)
-        self.create_subscription(String, 'nao_reconnect', self._on_reconnect_cmd, 10)
-        self.add_on_set_parameters_callback(self._on_param_change)
-
-    # ------------------------------------------------------------------
-    # Lifecycle
-    # ------------------------------------------------------------------
-
-    def _on_reconnect_cmd(self, msg: String):
-        """Update naoqi_host at runtime via the nao_reconnect topic.
-
-        woz_node publishes here to avoid subprocess DDS discovery issues.
-        Message format: 'naoqi_host:<ip>'
-        """
-        import rclpy.parameter as rp
-        key, _, value = msg.data.partition(':')
-        if key == 'naoqi_host' and value:
-            self.set_parameters([
-                rp.Parameter('naoqi_host', rp.Parameter.Type.STRING, value)
-            ])
-
-    def _on_param_change(self, params):
-        """Reconnect immediately when naoqi_host is changed at runtime."""
-        from rcl_interfaces.msg import SetParametersResult
-        for p in params:
-            if p.name == 'naoqi_host' and self._active:
-                new_host = p.value  # rclpy Parameter.value is already a Python str
-                if new_host and new_host != self._host:
-                    self._host = new_host
-                    self.get_logger().info(
-                        f'[NaoBridge] naoqi_host → {new_host}, reconnecting'
-                    )
-                    threading.Thread(target=self._reconnect, daemon=True).start()
-        return SetParametersResult(successful=True)
-
-    def _on_activate(self, msg: RobotConfig):
-        """Read NAOqi connection parameters from the launch configuration."""
-        self._host = self.get_parameter("naoqi_host").get_parameter_value().string_value
-        self._port = self.get_parameter("naoqi_port").get_parameter_value().integer_value
-        self._scheme = self.get_parameter("naoqi_scheme").get_parameter_value().string_value or "tcp"
-        self._ssl_cert = self.get_parameter("naoqi_ssl_cert").get_parameter_value().string_value
-        self.get_logger().info(
-            f"[NaoBridge] Connecting to {self._scheme}://{self._host}:{self._port}"
-        )
-
-    def _on_deactivate(self):
-        """Clear all proxies so they are not used after deactivation."""
-        self._qi_session = None
-        self._posture_proxy = None
-        self._leds_proxy = None
-        self._motion_proxy = None
-        self._tts_proxy = None
-        self._behavior_proxy = None
-        self._audio_proxy = None
-
-    def connect(self):
-        """Open a qi session and acquire all service proxies."""
-        if not _HAS_QI:
-            self.get_logger().warning(
-                "[NaoBridge] qi SDK not available — posture/LED commands disabled."
-            )
-            return
-        try:
-            url = f"{self._scheme}://{self._host}:{self._port}"
-            if self._scheme == "tcps" and self._ssl_cert:
-                app_args = ["nao_bridge", "--qi-url", url, "--qi-ssl-ca-cert", self._ssl_cert]
-                app = qi.Application(app_args)
-                app.start()
-                session = app.session
-            else:
-                session = qi.Session()
-                session.listen("tcp://0.0.0.0:0")
-                session.connect(url)
-            self._qi_session = session
-            self._posture_proxy = session.service("ALRobotPosture")
-            self._leds_proxy = session.service("ALLeds")
-            self._motion_proxy = session.service("ALMotion")
-            self._tts_proxy = session.service("ALTextToSpeech")
-            self._behavior_proxy = session.service("ALBehaviorManager")
-            self._audio_proxy = session.service("ALAudioDevice")
-            # Clear any TTS speech that was queued during a previous session
-            # (e.g. from duplicate say() calls before the node was killed).
-            try:
-                self._tts_proxy.stopAll()
-            except Exception:
-                pass
-            # Disable ALAutonomousLife for the whole session so it never fights
-            # incoming motion commands (it re-applies postures and interrupts moves).
-            # We deliberately do NOT restore it on disconnect — the user can re-enable
-            # it manually via the tablet or a reboot.
-            try:
-                life = session.service("ALAutonomousLife")
-                state = life.getState()
-                if state != "disabled":
-                    life.setState("disabled")
-                    self.get_logger().info(
-                        f"[NaoBridge] ALAutonomousLife disabled (was '{state}')."
-                    )
-            except Exception:
-                pass
-            # Wake up motors once at connect so the robot is immediately ready.
-            try:
-                self._motion_proxy.wakeUp()
-            except Exception:
-                pass
-            self.get_logger().info(
-                "[NaoBridge] qi session connected — posture, LED, TTS & behaviors available."
-            )
-            self.create_timer(60.0, self._keepalive)
-        except Exception as exc:
-            self.get_logger().warning(
-                f"[NaoBridge] qi connect failed: {exc} — posture/LED in dry-run mode."
-            )
-            self._qi_session = None
-
-    def disconnect(self):
-        """Clear proxies on deactivation or shutdown."""
-        self._on_deactivate()
-
-    def _after_cmd(self, msg):
-        """Re-disable autonomous life after each command — Pepper re-enables it on input."""
-        if self._qi_session is None:
-            return
-        try:
-            life = self._qi_session.service("ALAutonomousLife")
-            if life.getState() != "disabled":
-                life.setState("disabled")
-                self.get_logger().info("[NaoBridge] ALAutonomousLife re-disabled after command.")
-        except Exception:
-            pass
-
-    def _keepalive(self):
-        """Ping NAOqi every 60 s to keep the TCP connection alive; reconnect on failure."""
-        if not self._active or self._qi_session is None:
-            return
-        try:
-            self._tts_proxy.getLanguage()
-        except Exception:
-            self.get_logger().warning("[NaoBridge] Keepalive failed — reconnecting...")
-            threading.Thread(target=self._reconnect, daemon=True).start()
-            return
-        try:
-            life = self._qi_session.service("ALAutonomousLife")
-            if life.getState() != "disabled":
-                life.setState("disabled")
-                self.get_logger().info("[NaoBridge] ALAutonomousLife re-disabled (was re-enabled externally).")
-        except Exception:
-            pass
-
-    def _reconnect(self):
-        """Clear proxies and retry connect() up to 5 times with backoff.
-
-        Uses a lock to prevent concurrent reconnect threads (e.g. from
-        simultaneous keepalive failure and a command error).
-        """
-        if not self._reconnect_lock.acquire(blocking=False):
-            return  # reconnect already in progress
-        try:
-            self._on_deactivate()
-            for attempt in range(1, 6):
-                try:
-                    time.sleep(min(5 * attempt, 30))
-                    self.connect()
-                    if self._qi_session is not None:
-                        self.get_logger().info("[NaoBridge] Reconnected successfully.")
-                        return
-                except Exception:
-                    pass
-                self.get_logger().warning(f"[NaoBridge] Reconnect attempt {attempt}/5 failed.")
-            self.get_logger().error("[NaoBridge] Could not reconnect after 5 attempts.")
-        finally:
-            self._reconnect_lock.release()
-
-    def _is_connection_error(self, exc):
-        """True if the exception looks like a dropped TCP connection."""
-        msg = str(exc).lower()
-        return any(k in msg for k in (
-            "socket", "not connected", "disconnected", "broken pipe", "connection reset"
-        ))
-
-    # ------------------------------------------------------------------
-    # volume
-    # ------------------------------------------------------------------
-
-    def do_volume(self, msg: RobotCmd):
-        """Set audio output volume via ALAudioDevice (msg.speed = 0.0–1.0)."""
-        level = max(0, min(100, int((msg.speed if msg.speed > 0 else 0.5) * 100)))
-        self.get_logger().info(f'[NaoBridge] volume → {level}%')
-        if self._audio_proxy is not None:
-            try:
-                self._audio_proxy.setOutputVolume(level)
-            except Exception as exc:
-                self.get_logger().warn(f'[NaoBridge] volume error: {exc}')
-
-    # ------------------------------------------------------------------
-    # speak
-    # ------------------------------------------------------------------
-
-    def do_speak(self, msg: RobotCmd):
-        """Speak text via ALTextToSpeech (or fallback /speech topic)."""
-        if not msg.text:
-            return
-        naoqi_lang = LANG_MAP.get(msg.language or "fr-FR", "French")
-        self.get_logger().info(f"[NaoBridge] speak [{naoqi_lang}]: {msg.text}")
-        if self._tts_proxy is not None:
-            threading.Thread(
-                target=self._tts_say, args=(naoqi_lang, msg.text), daemon=True
-            ).start()
-        else:
-            out = String()
-            out.data = f"\\lang={naoqi_lang}\\ {msg.text}"
-            self._speech_pub.publish(out)
-
-    def _tts_say(self, lang, text):
-        if not self._tts_lock.acquire(blocking=False):
-            self.get_logger().warning("[NaoBridge] TTS busy — duplicate speak dropped.")
-            return
-        try:
-            self._tts_proxy.stopAll()      # cancel any lingering queued speech
-            self._tts_proxy.setLanguage(lang)
-            self.get_logger().info(f"[NaoBridge] TTS → calling say()")
-            self._tts_proxy.say(text)
-            self.get_logger().info(f"[NaoBridge] TTS ← say() returned")
-        except Exception as exc:
-            self.get_logger().error(f"[NaoBridge] TTS error: {exc}")
-            if self._is_connection_error(exc):
-                threading.Thread(target=self._reconnect, daemon=True).start()
-        finally:
-            self._tts_lock.release()
-
-    # ------------------------------------------------------------------
-    # move
-    # ------------------------------------------------------------------
-
-    def do_move(self, msg: RobotCmd):
-        """Dispatch a move command: behavior → gesture → walk → posture → raw joints."""
-        name = (msg.motion_name or "").strip()
-        if not name:
-            self.get_logger().warning("[NaoBridge] move: motion_name is empty.")
-            return
-
-        speed = max(0.1, msg.speed)
-
-        # Raw behavior path escape hatch: "behavior:path/to/behavior"
-        if name.lower().startswith("behavior:"):
-            behavior_path = name[len("behavior:"):]
-            self._gesture_stop.set()
-            self._gesture_stop = threading.Event()
-            threading.Thread(
-                target=self._run_behavior,
-                args=(behavior_path, self._gesture_stop),
-                daemon=True,
-            ).start()
-            return
-
-        # Translate QTrobot behavior names
-        if name.lower() in QT_TO_NAO_BEHAVIOR:
-            name = QT_TO_NAO_BEHAVIOR[name.lower()]
-
-        # Built-in NAOqi animation behaviors
-        if name.lower() in BEHAVIORS:
-            behavior_path = BEHAVIORS[name.lower()]
-            self._gesture_stop.set()
-            self._gesture_stop = threading.Event()
-            threading.Thread(
-                target=self._run_behavior,
-                args=(behavior_path, self._gesture_stop),
-                daemon=True,
-            ).start()
-            self.get_logger().info(f"[NaoBridge] behavior → {behavior_path}")
-            return
-
-        # Translate universal/QTrobot names to NAO gesture names
-        if name.lower() in QT_TO_NAO_MOTION:
-            mapped = QT_TO_NAO_MOTION[name.lower()]
-            if mapped is None:
-                self.get_logger().info(
-                    f"[NaoBridge] move: '{name}' has no NAO equivalent — skipped."
-                )
-                return
-            self.get_logger().info(f"[NaoBridge] move: '{name}' → '{mapped}'")
-            name = mapped
-
-        # Predefined gesture sequences
-        if name.lower() in GESTURES:
-            self._gesture_stop.set()   # stop any running gesture first
-            self._gesture_stop = threading.Event()
-            threading.Thread(
-                target=self._execute_gesture,
-                args=(name.lower(), speed, self._gesture_stop),
-                daemon=True,
-            ).start()
-            self.get_logger().info(f"[NaoBridge] gesture → {name}")
-            return
-
-        # Any other motion stops a running gesture
-        self._gesture_stop.set()
-
-        # Walking commands via ALMotion.moveToward (no naoqi_driver2 needed)
-        if name.lower() in WALK_CMDS:
-            vx, vy, vth = WALK_CMDS[name.lower()]
-            vx  *= speed
-            vy  *= speed
-            vth *= speed
-            self.get_logger().info(
-                f"[NaoBridge] walk '{name}' → vx={vx:.3f} vy={vy:.3f} vth={vth:.3f}"
-            )
-            if self._motion_proxy is not None:
-                def _do_walk():
-                    try:
-                        self._motion_proxy.wakeUp()
-                        self._motion_proxy.setStiffnesses("Body", 1.0)
-                        if name.lower() == "stop":
-                            self._motion_proxy.stopMove()
-                        else:
-                            if self._posture_proxy is not None:
-                                self._posture_proxy.goToPosture("Stand", 0.5)
-                            self._motion_proxy.moveInit()
-                            self._motion_proxy.moveToward(vx, vy, vth)
-                    except Exception as exc:
-                        self.get_logger().error(f"[NaoBridge] walk error: {exc}")
-                threading.Thread(target=_do_walk, daemon=True).start()
-            else:
-                # Fallback: /cmd_vel for naoqi_driver2
-                twist = Twist()
-                twist.linear.x  = vx
-                twist.linear.y  = vy
-                twist.angular.z = vth
-                self._cmd_vel_pub.publish(twist)
-            return
-
-        # Named postures via ALRobotPosture
-        if name.lower() in POSTURE_NAMES:
-            naoqi_name = POSTURE_NAMES[name.lower()]
-            if self._posture_proxy is not None:
-                threading.Thread(
-                    target=self._posture_proxy.goToPosture,
-                    args=(naoqi_name, speed),
-                    daemon=True,
-                ).start()
-                self.get_logger().info(f"[NaoBridge] posture → {naoqi_name} @ {speed:.2f}")
-            else:
-                self.get_logger().warning(
-                    f"[NaoBridge][DRY-RUN] posture → {naoqi_name} @ {speed:.2f} (qi not connected)"
-                )
-            return
-
-        # Raw joint control: "Joint:angle,Joint:angle,…" in radians
-        # Hands (LHand/RHand) require angleInterpolation; other joints use setAngles
-        if ":" in name:
-            try:
-                pairs = [p.strip().split(":") for p in name.split(",")]
-                joint_names  = [p[0].strip() for p in pairs]
-                joint_angles = [float(p[1].strip()) for p in pairs]
-                hand_joints  = [(j, a) for j, a in zip(joint_names, joint_angles)
-                                if j in ("LHand", "RHand")]
-                body_joints  = [(j, a) for j, a in zip(joint_names, joint_angles)
-                                if j not in ("LHand", "RHand")]
-                if self._motion_proxy is not None:
-                    if body_joints:
-                        self._motion_proxy.setAngles(
-                            [j for j, _ in body_joints],
-                            [float(a) for _, a in body_joints],
-                            speed,
-                        )
-                    if hand_joints:
-                        self._motion_proxy.angleInterpolation(
-                            [j for j, _ in hand_joints],
-                            [[float(a)] for _, a in hand_joints],
-                            [[1.0] for _ in hand_joints],
-                            True,
-                        )
-                else:
-                    jmsg = JointAnglesWithSpeed()
-                    jmsg.joint_names  = [j for j, _ in body_joints] or joint_names
-                    jmsg.joint_angles = [float(a) for _, a in body_joints] or joint_angles
-                    jmsg.speed = speed
-                    jmsg.relative = 0
-                    self._joint_pub.publish(jmsg)
-                self.get_logger().info(f"[NaoBridge] joints: {name} @ speed={speed:.2f}")
-            except Exception as exc:
-                self.get_logger().error(f"[NaoBridge] joint parse error: {exc}")
-        else:
-            if name.lower().startswith("qt/"):
-                self.get_logger().debug(f"[NaoBridge] QT-only animation skipped on NAO: '{name}'")
-            else:
-                self.get_logger().warning(
-                    f"[NaoBridge] Unknown motion_name '{name}'. "
-                    "Use a posture keyword (Stand/Sit/…), a gesture name, or 'Joint:angle,…' format."
-                )
-
-    def _run_behavior(self, behavior_path, stop_event):
-        """Run an installed NAOqi behavior; warn if not found on this robot."""
-        if self._behavior_proxy is None:
-            self.get_logger().warning(
-                f"[NaoBridge][DRY-RUN] behavior '{behavior_path}' (qi not connected)"
-            )
-            return
-        try:
-            if not self._behavior_proxy.isBehaviorInstalled(behavior_path):
-                self.get_logger().warning(
-                    f"[NaoBridge] Behavior '{behavior_path}' not found on this robot. "
-                    "Check with: qicli call ALBehaviorManager.getInstalledBehaviors"
-                )
-                return
-            self.get_logger().info(f"[NaoBridge] Running behavior: {behavior_path}")
-            self._behavior_proxy.runBehavior(behavior_path)  # blocking until done
-        except Exception as exc:
-            if not stop_event.is_set():
-                self.get_logger().error(f"[NaoBridge] behavior error: {exc}")
-        finally:
-            try:
-                self._behavior_proxy.stopBehavior(behavior_path)
-            except Exception:
-                pass
-
-    def _run_steps(self, steps, speed, stop_event):
-        """Execute a sequence of (joints, angles, speed, pause) steps; returns False if interrupted."""
-        for joint_names, joint_angles, step_speed, pause in steps:
-            if stop_event.is_set():
-                return False
-            effective_speed = float(min(speed, 1.0))
-            if self._motion_proxy is not None:
-                try:
-                    # angleInterpolationWithSpeed moves all joints simultaneously
-                    # and blocks until done — hands included
-                    self._motion_proxy.angleInterpolationWithSpeed(
-                        list(joint_names),
-                        [float(a) for a in joint_angles],
-                        effective_speed,
-                    )
-                except Exception as exc:
-                    self.get_logger().error(f"[NaoBridge] motion error: {exc}")
-                    if self._is_connection_error(exc):
-                        threading.Thread(target=self._reconnect, daemon=True).start()
-                    return False
-            else:
-                jmsg = JointAnglesWithSpeed()
-                jmsg.joint_names = joint_names
-                jmsg.joint_angles = [float(a) for a in joint_angles]
-                jmsg.speed = effective_speed
-                jmsg.relative = 0
-                self._joint_pub.publish(jmsg)
-            if pause > 0:
-                time.sleep(pause / speed)
-        return True
-
-    @staticmethod
-    def _gesture_joints(gesture):
-        """Collect all joint names used by a gesture (for selective stiffening)."""
-        joints = set()
-        steps = gesture if isinstance(gesture, list) else (
-            gesture.get("init", []) + gesture.get("loop", []) + gesture.get("cleanup", [])
-        )
-        for joint_names, *_ in steps:
-            joints.update(joint_names)
-        return list(joints)
-
-    def _execute_gesture(self, name, speed, stop_event):
-        """Run a named gesture from GESTURES; handles both one-shot and looping types."""
-        if self._motion_proxy is not None:
-            try:
-                self._motion_proxy.wakeUp()
-            except Exception:
-                pass
-            try:
-                # Only stiffen the joints this gesture uses — relaxed parts stay relaxed
-                used_joints = self._gesture_joints(GESTURES[name])
-                self._motion_proxy.setStiffnesses(used_joints, [1.0] * len(used_joints))
-            except Exception as exc:
-                self.get_logger().warning(f"[NaoBridge] setStiffnesses failed: {exc}")
-        gesture = GESTURES[name]
-        if isinstance(gesture, list):
-            self._run_steps(gesture, speed, stop_event)
-        else:
-            if not self._run_steps(gesture["init"], speed, stop_event):
-                return
-            while not stop_event.is_set():
-                if not self._run_steps(gesture["loop"], speed, stop_event):
-                    break
-            self._run_steps(gesture["cleanup"], speed, threading.Event())
-
-    # ------------------------------------------------------------------
-    # display
-    # ------------------------------------------------------------------
-
-    def do_display(self, msg: RobotCmd):
-        """Set LED colors: by led_name+color, or by emotion name."""
-        duration = max(0.5, msg.duration_ms / 1000.0) if msg.duration_ms > 0 else 3.0
-
-        # Direct LED color control: led_name + color fields
-        if msg.led_name:
-            group_key = msg.led_name.lower().strip()
-            color_str = (msg.color or "white").strip()
-            led_map = LED_GROUPS_PEPPER if self._robot_type == "pepper" else LED_GROUPS_NAO
-            naoqi_group = led_map.get(group_key)
-            if naoqi_group is None:
-                self.get_logger().warning(
-                    f"[NaoBridge] unknown led_name '{group_key}'. "
-                    f"Valid: {', '.join(led_map.keys())}"
-                )
-                return
-            rgb = _parse_color(color_str)
-            if rgb is None:
-                self.get_logger().warning(
-                    f"[NaoBridge] unknown color '{color_str}'. "
-                    "Use '#RRGGBB' or: red, green, blue, white, yellow, cyan, magenta, orange, purple, pink, off."
-                )
-                return
-            r, g, b = rgb
-            color_int = (r << 16) | (g << 8) | b
-            self.get_logger().info(
-                f"[NaoBridge] display led '{group_key}' ({naoqi_group}) → "
-                f"#{r:02X}{g:02X}{b:02X} for {duration:.1f}s"
-            )
-            if self._leds_proxy is not None:
-                threading.Thread(
-                    target=self._leds_proxy.fadeRGB,
-                    args=(naoqi_group, color_int, duration),
-                    daemon=True,
-                ).start()
-            else:
-                self.get_logger().warning("[NaoBridge][DRY-RUN] led (qi not connected)")
-            return
-
-        # Emotion → face + chest/shoulder LEDs
-        emotion = (msg.emotion or "neutral").lower().strip()
-        rgb_f = EMOTION_LEDS.get(emotion, EMOTION_LEDS["neutral"])
-        r = int(rgb_f[0] * 255) & 0xFF
-        g = int(rgb_f[1] * 255) & 0xFF
-        b = int(rgb_f[2] * 255) & 0xFF
-        color_int = (r << 16) | (g << 8) | b
-        if self._leds_proxy is not None:
-            emotion_groups = (
-                ("FaceLeds", "ShoulderLeds") if self._robot_type == "pepper"
-                else ("FaceLeds", "ChestLeds")
-            )
-            def _fade_group(g):
-                try:
-                    self._leds_proxy.fadeRGB(g, color_int, duration)
-                except Exception as exc:
-                    self.get_logger().warning(
-                        f"[NaoBridge] LED group '{g}' not available: {exc}"
-                    )
-            for group in emotion_groups:
-                threading.Thread(target=_fade_group, args=(group,), daemon=True).start()
-            self.get_logger().info(
-                f"[NaoBridge] display '{emotion}' → "
-                f"{'+'.join(emotion_groups)} RGB=({r},{g},{b}) for {duration:.1f}s"
-            )
-        else:
-            self.get_logger().warning(
-                f"[NaoBridge][DRY-RUN] display '{emotion}' → "
-                f"RGB=({r},{g},{b}) for {duration:.1f}s (qi not connected)"
-            )
-
-    # ------------------------------------------------------------------
-    # relax / stiffen
-    # ------------------------------------------------------------------
-
-    # NAOqi body-part names accepted by ALMotion.setStiffnesses
-    _STIFFNESS_PARTS = {
-        "body":              "Body",
-        "head":              "Head",
-        "larm":              "LArm",
-        "rarm":              "RArm",
-        "left_arm":          "LArm",
-        "right_arm":         "RArm",
-        "arms":              "Arms",
-        "lhand":             "LHand",
-        "rhand":             "RHand",
-        "left_hand":         "LHand",
-        "right_hand":        "RHand",
-        "lleg":              "LLeg",
-        "rleg":              "RLeg",
-        "left_leg":          "LLeg",
-        "right_leg":         "RLeg",
-        "legs":              "Legs",
-        # Arm without hand (shoulder + elbow + wrist only)
-        "larm_no_hand":      ["LShoulderPitch", "LShoulderRoll", "LElbowYaw", "LElbowRoll", "LWristYaw"],
-        "rarm_no_hand":      ["RShoulderPitch", "RShoulderRoll", "RElbowYaw", "RElbowRoll", "RWristYaw"],
-        "left_arm_no_hand":  ["LShoulderPitch", "LShoulderRoll", "LElbowYaw", "LElbowRoll", "LWristYaw"],
-        "right_arm_no_hand": ["RShoulderPitch", "RShoulderRoll", "RElbowYaw", "RElbowRoll", "RWristYaw"],
-        "arms_no_hand":      ["LShoulderPitch", "LShoulderRoll", "LElbowYaw", "LElbowRoll", "LWristYaw",
-                              "RShoulderPitch", "RShoulderRoll", "RElbowYaw", "RElbowRoll", "RWristYaw"],
-    }
-
-    def do_stiffness(self, msg: RobotCmd, stiff: bool):
-        """Set joint stiffness to 0 (relax) or 1 (stiffen) for the specified body part."""
-        part_key = (msg.motion_name or "body").strip().lower()
-        naoqi_part = self._STIFFNESS_PARTS.get(part_key, part_key)
-        value = 1.0 if stiff else 0.0
-        label = "stiffen" if stiff else "relax"
-        self.get_logger().info(f"[NaoBridge] {label} → {naoqi_part} (stiffness={value})")
-        if self._motion_proxy is not None:
-            threading.Thread(
-                target=self._apply_stiffness,
-                args=(naoqi_part, value, label),
-                daemon=True,
-            ).start()
-        else:
-            self.get_logger().warning(
-                f"[NaoBridge][DRY-RUN] {label} '{naoqi_part}' (qi not connected)"
-            )
-
-    def _apply_stiffness(self, naoqi_part, value, label):
-        try:
-            # Full-body relax: use rest() so Pepper's safety system cooperates
-            # (setStiffnesses("Body", 0.0) is silently blocked while standing).
-            # Partial relax (arms, head, …) can skip directly to setStiffnesses.
-            if value == 0.0 and naoqi_part == "Body":
-                self._motion_proxy.rest()
-            else:
-                self._motion_proxy.setStiffnesses(naoqi_part, value)
-            self.get_logger().info(f"[NaoBridge] {label} '{naoqi_part}' done.")
-        except Exception as exc:
-            self.get_logger().error(f"[NaoBridge] stiffness error: {exc}")
-            if self._is_connection_error(exc):
-                threading.Thread(target=self._reconnect, daemon=True).start()
-
-
-def main(args=None):
-    rclpy.init(args=args)
-    node = NaoBridge()
-    try:
-        rclpy.spin(node)
-    except KeyboardInterrupt:
-        pass
-    finally:
-        node.destroy_node()
-        rclpy.try_shutdown()
-
-
-if __name__ == "__main__":
-    main()
+# GESTURES aliases for BEHAVIORS names that may not be installed on all NAOs.
+# These allow _do_move to fall back to joint-angle sequences when runBehavior fails.
+GESTURES["applause"] = GESTURES["clapping"]

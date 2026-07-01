@@ -2,6 +2,8 @@
 // and Ana Tudor: https://stackoverflow.com/questions/12813573/position-icons-into-circle
 // https://css-tricks.com/snippets/sass/placing-items-circle/
 
+var WOZ_BASE = (typeof WOZ_RID !== 'undefined') ? '/r/' + WOZ_RID : '';
+
 let StickStatus =
 {
     xPosition: 0,
@@ -359,7 +361,7 @@ var JoyStick = (function(container, parameters, callback)
     this.GetDir = function() {
         const dir = getCardinalDirection();
         if (dir !== prevDir/* && dir !== 'center'*/) {
-            const url_path = "/woz";
+            const url_path = WOZ_BASE + "/woz";
             var xhttp = new XMLHttpRequest();
     
             var joystickPayload = { "direction": dir };
@@ -744,7 +746,7 @@ let prevWalk = "";
 this.GetDir = function() {
     const walking = getCardinalDirection();
     if (walking !== prevWalk/* && walking !== 'stop'*/) {
-        const url_path = "/woz";
+        const url_path = WOZ_BASE + "/woz";
         var xhttp = new XMLHttpRequest();
 
         var joysticWalkPayload = { "walk": walking };
@@ -985,7 +987,7 @@ function commandButtonClick( g_id, c_id) {
 
 	
 	//alert(command);
-	const url_path = "/woz";
+	const url_path = WOZ_BASE + "/woz";
 	var xhttp = new XMLHttpRequest();
 
 	// the data sent to flask
@@ -1026,3 +1028,48 @@ function setCommandListOpacity( opacity) {
 			$(id).css('opacity', opacity);
 		}
 }
+
+// ── Shared controls injected on every page ────────────────────────────────────
+
+function initSharedControls() {
+    // Volume buttons
+    var vol = document.createElement('div');
+    vol.id = 'volume-container';
+    vol.className = 'volume-container';
+    vol.innerHTML =
+        '<button class="volume-btn" id="volume-up">+</button>' +
+        '<span class="volume-icon">🔊</span>' +
+        '<span class="volume-level" id="volume-level">50</span>' +
+        '<button class="volume-btn" id="volume-down">-</button>';
+    document.body.appendChild(vol);
+
+    var level = parseInt(localStorage.getItem('woz_volume') || '50', 10);
+    document.getElementById('volume-level').textContent = level;
+    function sendVolume() {
+        localStorage.setItem('woz_volume', String(level));
+        document.getElementById('volume-level').textContent = level;
+        $.ajax({ url: WOZ_BASE + '/woz', type: 'POST', contentType: 'application/json',
+                 data: JSON.stringify({ volume: level }) });
+    }
+    document.getElementById('volume-up').addEventListener('click', function() {
+        level = Math.min(100, level + 10);
+        sendVolume();
+    });
+    document.getElementById('volume-down').addEventListener('click', function() {
+        level = Math.max(0, level - 10);
+        sendVolume();
+    });
+
+    // Emergency stop button
+    var stop = document.createElement('button');
+    stop.id = 'emergency-stop';
+    stop.className = 'emergency-stop';
+    stop.textContent = '⛔ STOP';
+    stop.addEventListener('click', function() {
+        $.ajax({ url: WOZ_BASE + '/woz', type: 'POST', contentType: 'application/json',
+                 data: JSON.stringify({ relax: true }) });
+    });
+    document.body.appendChild(stop);
+}
+
+document.addEventListener('DOMContentLoaded', initSharedControls);
