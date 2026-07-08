@@ -64,6 +64,24 @@
         #loading-msg   { display: none; color: #0055cc; font-size: 0.85em; margin-top: 6px; }
 
         .empty-msg { color: #888; font-style: italic; }
+
+        /* Bonjour discovery */
+        .scan-list { list-style: none; padding: 0; margin: 0; }
+        .scan-item {
+            display: flex; align-items: center; gap: 10px;
+            padding: 8px 12px; margin-bottom: 6px;
+            border: 1px solid #bbd; border-radius: 6px; background: #f4f8ff;
+        }
+        .scan-item-info { flex: 1; }
+        .scan-item-info strong { font-size: 0.95em; }
+        .scan-item-info small  { color: #555; font-size: 0.82em; display: block; }
+        .btn-use {
+            padding: 5px 14px; background: #0055cc; color: #fff;
+            border: none; border-radius: 4px; cursor: pointer; font-size: 0.85em;
+        }
+        .btn-use:hover { background: #0044aa; }
+        .scan-empty { color: #888; font-style: italic; font-size: 0.9em; }
+        .scan-searching { color: #555; font-size: 0.85em; }
     </style>
 </head>
 <body>
@@ -103,6 +121,16 @@
             {% else %}
             <p class="empty-msg">Aucun robot connecté pour l'instant.</p>
             {% endif %}
+
+            <h2>Robots détectés sur le réseau
+                <button id="btn-refresh" onclick="doRefresh()"
+                        style="margin-left:10px;padding:3px 10px;font-size:0.8em;cursor:pointer;">
+                    Rafraîchir
+                </button>
+            </h2>
+            <div id="scan-container">
+                <p class="scan-searching">Recherche en cours…</p>
+            </div>
 
             <h2>Ajouter un robot</h2>
             <div class="add-form">
@@ -163,6 +191,69 @@ function onSubmit() {
 }
 
 updateVersions();
+
+// Network discovery
+function renderScan(data) {
+    var el = document.getElementById('scan-container');
+    var robots = data.robots || [];
+    var scanning = data.scanning;
+    if (scanning && !robots.length) {
+        el.innerHTML = '<p class="scan-searching">Scan en cours…</p>';
+        return;
+    }
+    if (!robots.length) {
+        el.innerHTML = '<p class="scan-empty">Aucun robot détecté sur le réseau.</p>';
+        return;
+    }
+    var html = '<ul class="scan-list">';
+    robots.forEach(function(r) {
+        html += '<li class="scan-item">' +
+            '<div class="scan-item-info">' +
+                '<strong>' + r.name + '</strong>' +
+                '<small>' + r.robot_type.toUpperCase() + ' — ' + r.ip + ':' + r.port + '</small>' +
+            '</div>' +
+            '<button class="btn-use" onclick="useRobot(\'' + r.ip + '\',\'' + r.robot_type + '\')">' +
+                'Utiliser' +
+            '</button>' +
+        '</li>';
+    });
+    if (scanning) html += '<li style="padding:4px 12px;font-size:0.82em;color:#555;">Scan en cours…</li>';
+    el.innerHTML = html + '</ul>';
+}
+
+function useRobot(ip, type) {
+    document.getElementById('robot_ip').value = ip;
+    var sel = document.getElementById('robot_type');
+    for (var i = 0; i < sel.options.length; i++) {
+        if (sel.options[i].value === type) { sel.selectedIndex = i; break; }
+    }
+    updateVersions();
+    document.getElementById('robot_ip').scrollIntoView({behavior: 'smooth'});
+}
+
+function doRefresh() {
+    document.getElementById('btn-refresh').disabled = true;
+    $.post('/robots/scan/refresh', function() {
+        setTimeout(function() { document.getElementById('btn-refresh').disabled = false; }, 3000);
+        setTimeout(pollScanOnce, 3000);
+    });
+    document.getElementById('scan-container').innerHTML = '<p class="scan-searching">Scan en cours…</p>';
+}
+
+function pollScanOnce() {
+    $.getJSON('/robots/scan', function(data) { renderScan(data); });
+}
+
+function pollScan() {
+    $.getJSON('/robots/scan', function(data) {
+        renderScan(data);
+        setTimeout(pollScan, data.scanning ? 2000 : 10000);
+    }).fail(function() {
+        document.getElementById('scan-container').innerHTML =
+            '<p class="scan-empty">Détection non disponible.</p>';
+    });
+}
+pollScan();
 
 // Auto-refresh status while any robot is connecting
 {% if robots %}

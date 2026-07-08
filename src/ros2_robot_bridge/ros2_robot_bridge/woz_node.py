@@ -31,6 +31,7 @@ except ImportError:
     _HAS_FLASK = False
 
 import ros2_robot_bridge.woz_states as _s  # noqa: E402
+from ros2_robot_bridge.robot_discovery import RobotDiscovery  # noqa: E402
 from ros2_robot_bridge.nao_behavior_tables import (  # noqa: E402
     BEHAVIORS as _NAO_BEHAVIORS,
     QT_TO_NAO_BEHAVIOR as _QT_TO_NAO_BEHAVIOR,
@@ -467,6 +468,9 @@ class WozNode(Node):
         self._next_rid     = 0
         self._robots_lock  = threading.Lock()
 
+        self._discovery = RobotDiscovery()
+        self._discovery.start()
+
         if not _HAS_FLASK:
             self.get_logger().error('[WOZ] flask not installed — pip install flask')
             return
@@ -585,6 +589,18 @@ def _register_routes(app: 'Flask', node: WozNode):
     @app.route('/robots/status')
     def robots_status():
         return jsonify(node.all_robots())
+
+    @app.route('/robots/scan')
+    def robots_scan():
+        return jsonify({
+            'scanning': node._discovery.scanning,
+            'robots':   node._discovery.robots,
+        })
+
+    @app.route('/robots/scan/refresh', methods=['POST'])
+    def robots_scan_refresh():
+        node._discovery.refresh()
+        return jsonify({'ok': True})
 
     # ── Per-robot pages ───────────────────────────────────────────────────────
 
