@@ -554,7 +554,6 @@ def _register_routes(app: 'Flask', node: WozNode):
     @app.route('/scenarios')
     @app.route('/reactions')
     @app.route('/maison')
-    @app.route('/theatre')
     @app.route('/macros')
     @app.route('/vocal')
     def tab_legacy():
@@ -652,10 +651,6 @@ def _register_routes(app: 'Flask', node: WozNode):
     @app.route('/r/<int:rid>/reactions')
     def robot_reactions(rid):
         return _render_tab('reactions.html', rid)
-
-    @app.route('/r/<int:rid>/theatre')
-    def robot_theatre(rid):
-        return _render_tab('theatre.html', rid)
 
     @app.route('/r/<int:rid>/maison')
     def robot_maison(rid):
