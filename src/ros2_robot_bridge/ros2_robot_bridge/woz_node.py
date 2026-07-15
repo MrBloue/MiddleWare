@@ -612,13 +612,10 @@ def _register_routes(app: 'Flask', node: WozNode):
                                        robot_type=slot.robot_type,
                                        connecting=slot.connecting,
                                        conn_error=slot.error or 'Robot non connecté')
-            fname  = request.form.get('fname', '').strip()
+            fname  = request.form.get('fname', '').strip() or 'Enfant'
             lname  = request.form.get('lname', '').strip()
-            fname2 = request.form.get('fname2', '').strip()
-            if not fname or not lname or not fname2:
-                return render_template('login.html', rid=rid, robot_ip=slot.host,
-                                       robot_type=slot.robot_type, error=True)
-            slot.child_name = fname
+            fname2 = request.form.get('fname2', '').strip() or 'Accompagnant'
+            slot.child_name = f'{fname} {lname}'.strip()
             slot.adult_name = fname2
             session[f'rid_{rid}_ok'] = True
             slot.enter_state('begin')

@@ -33,17 +33,14 @@
 				<p style="color:#cc0000; text-align:center;">Connexion échouée : {{ conn_error }}<br>
 				<small><a href="/robots">← Retour à la liste des robots</a></small></p>
 				{% else %}
-				<form action="/r/{{ rid }}/login" method='post' onsubmit="return verify()" >
+				<form action="/r/{{ rid }}/login" method='post'>
 					<h1>Indiquez votre prénom :</h1>
-					<input type="text" id="fname2" name="fname2" value=""><br>
+					<input type="text" id="fname2" name="fname2" placeholder="Accompagnant"><br>
 					<h1> Avec quel enfant allez-vous utiliser le robot ?</h1>
 					<label for="fname">Prénom :</label><br>
-					<input type="text" id="fname" name="fname" value=""><br>
+					<input type="text" id="fname" name="fname" placeholder="Enfant"><br>
 					<label for="lname">Nom :</label><br>
-					<input type="text" id="lname" name="lname" value=""><br><br>
-					{% if error %}
-					<p style="color:#cc0000; font-size:0.9em;">Veuillez remplir tous les champs.</p>
-					{% endif %}
+					<input type="text" id="lname" name="lname" placeholder="(optionnel)"><br><br>
 					<input type="submit" value="C'est parti !" >
 					<img src="/static/images/twirl.png" width="10%" />
 				</form>
@@ -60,22 +57,6 @@
 	</div>
 			
 
-<script><!--
-
-function verify(){
-	var fname2 = document.getElementById("fname2").value;
-	var fname = document.getElementById("fname").value;
-	var lname = document.getElementById("lname").value;
-	if ( fname2 == "" || fname == "" || lname == "" ) {
-		alert("Vérifier que vous avez bien entré le nom et le prénom");
-		return false;
-	}else{
-		return true;
-	}
-		
-}
-
---></script>
 
 
 </body>
