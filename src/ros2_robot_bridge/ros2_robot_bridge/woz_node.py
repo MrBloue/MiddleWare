@@ -242,6 +242,11 @@ class _RobotSlot:
                     kwargs.get('color', 'white'),
                 )
             elif action == 'relax':
+                if self._tts:
+                    try:
+                        self._tts.stopAll()
+                    except Exception:
+                        pass
                 part = kwargs.get('motion_name', 'body')
                 if self._motion:
                     if part == 'body':
