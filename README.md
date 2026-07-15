@@ -167,7 +167,7 @@ Robots can be disconnected individually from the `/robots` page. The live robot 
 
 ### Login
 
-Enter the therapist's name, the child's first name, and last name. These names are substituted into speech templates at runtime (`child_name` and `adult_name` placeholders in `woz_states.py`). The robot greets the child on submission.
+All fields are optional. Defaults are **Enfant** (child) and **Accompagnant** (therapist) if left blank. Names are substituted into speech templates at runtime (`child_name` and `adult_name` placeholders in `woz_states.py`). The robot greets the child on submission.
 
 ### Pages
 
@@ -176,8 +176,10 @@ Enter the therapist's name, the child's first name, and last name. These names a
 | **Scénario et Jeux** | Scenario launch and explanation buttons grouped by game type |
 | **Réactions** | Quick-reaction buttons (emotions, feedback, questions) for live improvisation |
 | **Maison** | Alternate activity set (symbolic play, mime, manual activities, daily life) |
-| **RobotAct** | Theatre/performance page with expression and posture buttons, a walk joystick, a head-look joystick, and volume **+** / **−** buttons |
+| **Macros** | Custom macro buttons, quick motion presets, relax/stiffen controls, a walk joystick, and a head-look joystick |
 | **Vocal** | Browser microphone → server-side Whisper transcription → robot repeats or executes a voice command |
+
+All tabs include a walk joystick (bottom-right) and a head-look joystick (bottom-left). An **⛔ STOP** button is always visible — pressing it stops all motor movement and interrupts any ongoing speech.
 
 All category labels in the UI use the generic term **"Le robot"** and are not tied to any specific robot model.
 
@@ -226,7 +228,7 @@ NAO-compatible tags that pass through unchanged: `\pau=N\` (pause ms), `\rspd=N\
 
 ### Gesture and emotion mapping (NAO / Pepper)
 
-`qt/...` and `QT/...` gesture paths from `woz_states.py` are translated to NAO equivalents via two dicts in `nao_behavior_tables.py`:
+Gesture name lookup is **case-insensitive** — `QT/happy`, `qt/happy`, and `Qt/Happy` all resolve to the same NAO animation. `qt/...` gesture paths from `woz_states.py` are translated to NAO equivalents via two dicts in `nao_behavior_tables.py`:
 
 - **`QT_TO_NAO_BEHAVIOR`** — maps to a `BEHAVIORS` or `GESTURES` key for execution.
 - **`QT_TO_NAO_MOTION`** — maps to a `GESTURES` key, or `None` to silently skip (used for QT-specific paths that have no meaningful NAO equivalent).
@@ -384,7 +386,7 @@ ros2 topic pub --once /robot_cmd ros2_robot_bridge/msg/RobotCmd \
 
 One-shot gestures run once and return to neutral. **Infinite-loop gestures** (marked ∞) run until interrupted by any other `move` command. Only the joints used by each gesture are stiffened — relaxed body parts remain relaxed.
 
-> **Pepper:** `ALAutonomousLife` is disabled when the bridge connects and re-disabled after every command dispatch (Pepper's tablet re-enables it on interaction). The keepalive timer also checks every 60 s and disables it if it was re-enabled externally. `wakeUp()` is called once at connect to engage the motors.
+> **NAO / Pepper:** `ALAutonomousLife` is disabled at connect and re-disabled before every walk command so the life manager cannot block motion. Motor stiffness is set to 1.0 at connect (`setStiffnesses`) without forcing a stand-up posture (`wakeUp` is not called, so the robot stays in whatever posture it is in when the WOZ connects).
 
 ```bash
 ros2 topic pub --once /robot_cmd ros2_robot_bridge/msg/RobotCmd \
@@ -1044,7 +1046,7 @@ ros2 topic pub --once /robot_cmd ros2_robot_bridge/msg/RobotCmd \
 **NAO / Pepper:** calls `ALAudioDevice.setOutputVolume(0–100)` via qi.  
 **QTrobot:** not implemented — command is silently skipped and logged.
 
-The **RobotAct** tab in the WOZ interface exposes two circular buttons (**+** / **−**) above the left joystick. Each press adjusts the volume by ±10 percentage points (clamped to 0–100). The current level is tracked client-side starting at 50 % and is not displayed.
+The **Macros** tab in the WOZ interface exposes two circular buttons (**+** / **−**) above the left joystick. Each press adjusts the volume by ±10 percentage points (clamped to 0–100). The current level is tracked client-side starting at 50 % and is not displayed.
 
 ---
 
