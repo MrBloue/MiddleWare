@@ -193,6 +193,11 @@ class _RobotSlot:
             self._behavior = s.service('ALBehaviorManager')
             self._audio    = s.service('ALAudioDevice')
             try:
+                life = s.service('ALAutonomousLife')
+                life.setState('disabled')
+            except Exception:
+                pass
+            try:
                 self._motion.setStiffnesses('Body', 1.0)
             except Exception:
                 pass
@@ -263,9 +268,10 @@ class _RobotSlot:
     def _do_move(self, motion_name: str, speed: float):
         if not motion_name:
             return
+        mn_lower = motion_name.lower()
 
         # Posture
-        posture = _SLOT_POSTURES.get(motion_name.lower())
+        posture = _SLOT_POSTURES.get(mn_lower)
         if posture and self._posture:
             self._posture.goToPosture(posture, max(0.1, min(1.0, speed)))
             return
@@ -277,6 +283,11 @@ class _RobotSlot:
             if motion_name == 'stop':
                 self._motion.stopMove()
             else:
+                try:
+                    life = self._qi.service('ALAutonomousLife')
+                    life.setState('disabled')
+                except Exception:
+                    pass
                 self._motion.moveToward(x * speed, y * speed, theta * speed)
             return
 
@@ -291,16 +302,16 @@ class _RobotSlot:
         # Named gesture / behavior — resolve via nao_behavior_tables
         if self._behavior:
             try:
-                if motion_name in _NAO_BEHAVIORS:
-                    self._behavior.runBehavior(_NAO_BEHAVIORS[motion_name])
+                if mn_lower in _NAO_BEHAVIORS:
+                    self._behavior.runBehavior(_NAO_BEHAVIORS[mn_lower])
                     return
-                if motion_name in _QT_TO_NAO_BEHAVIOR:
-                    nao_name = _QT_TO_NAO_BEHAVIOR[motion_name]
+                if mn_lower in _QT_TO_NAO_BEHAVIOR:
+                    nao_name = _QT_TO_NAO_BEHAVIOR[mn_lower]
                     if nao_name and nao_name in _NAO_BEHAVIORS:
                         self._behavior.runBehavior(_NAO_BEHAVIORS[nao_name])
                         return
-                if motion_name in _QT_TO_NAO_MOTION:
-                    nao_name = _QT_TO_NAO_MOTION[motion_name]
+                if mn_lower in _QT_TO_NAO_MOTION:
+                    nao_name = _QT_TO_NAO_MOTION[mn_lower]
                     if nao_name and nao_name in _NAO_BEHAVIORS:
                         self._behavior.runBehavior(_NAO_BEHAVIORS[nao_name])
                         return
@@ -315,8 +326,8 @@ class _RobotSlot:
                 self._log.warning(f'[WOZ] Slot {self.rid} raw behavior error ({motion_name}): {exc}')
 
         # Joint-angle gesture sequences (wave, nod, shake_head, arms_open, peekaboo, …)
-        if motion_name in _NAO_GESTURES and self._motion:
-            gesture = _NAO_GESTURES[motion_name]
+        if mn_lower in _NAO_GESTURES and self._motion:
+            gesture = _NAO_GESTURES[mn_lower]
             steps = gesture if isinstance(gesture, list) else (
                 gesture.get('init', []) + gesture.get('loop', []) + gesture.get('cleanup', [])
             )
