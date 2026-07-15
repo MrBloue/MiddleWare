@@ -193,9 +193,7 @@ class _RobotSlot:
             self._behavior = s.service('ALBehaviorManager')
             self._audio    = s.service('ALAudioDevice')
             try:
-                life = s.service('ALAutonomousLife')
-                life.setState('disabled')
-                self._motion.wakeUp()
+                self._motion.setStiffnesses('Body', 1.0)
             except Exception:
                 pass
             self.connected  = True
