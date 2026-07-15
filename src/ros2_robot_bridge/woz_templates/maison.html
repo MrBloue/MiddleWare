@@ -74,11 +74,13 @@
     var joy3X = document.getElementById("joy3X");
     var joy3Y = document.getElementById("joy3Y");
 
-    setInterval(function(){ joy3IinputPosX.value=Joy3.GetPosX(); }, 50);
-    setInterval(function(){ joy3InputPosY.value=Joy3.GetPosY(); }, 50);
-    setInterval(function(){ joy3Direzione.value=Joy3.GetDir(); }, 50);
-    setInterval(function(){ joy3X.value=Joy3.GetX(); }, 50);
-    setInterval(function(){ joy3Y.value=Joy3.GetY(); }, 50);
+    setInterval(function(){ Joy3.GetDir(); }, 50);
+    </script>
+
+    <div class="joy3Div2" id="joy3Div2"></div>
+    <script type="text/javascript">
+    var Joy2 = new JoyStick2('joy3Div2', {"title": "joystick2"});
+    setInterval(function(){ Joy2.GetDir(); }, 50);
     </script>
 
 <script><!--

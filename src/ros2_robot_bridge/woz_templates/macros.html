@@ -81,5 +81,17 @@
         <div id="footer"></div>
     </div>
 
+    <div class="joy3Div" id="joy3Div"></div>
+    <script type="text/javascript">
+    var Joy3 = new JoyStick('joy3Div', {"title": "joystick3"});
+    setInterval(function(){ Joy3.GetDir(); }, 50);
+    </script>
+
+    <div class="joy3Div2" id="joy3Div2"></div>
+    <script type="text/javascript">
+    var Joy2 = new JoyStick2('joy3Div2', {"title": "joystick2"});
+    setInterval(function(){ Joy2.GetDir(); }, 50);
+    </script>
+
 </body>
 </html>

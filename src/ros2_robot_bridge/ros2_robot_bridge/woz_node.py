@@ -279,11 +279,6 @@ class _RobotSlot:
             if motion_name == 'stop':
                 self._motion.stopMove()
             else:
-                try:
-                    life = self._qi.service('ALAutonomousLife')
-                    life.setState('disabled')
-                except Exception:
-                    pass
                 self._motion.moveToward(x * speed, y * speed, theta * speed)
             return
 
@@ -724,6 +719,7 @@ def _register_routes(app: 'Flask', node: WozNode):
             slot.exec_cmd(
                 action='move',
                 motion_name=f'HeadYaw:{math.radians(yaw):.4f},HeadPitch:{math.radians(pitch):.4f}',
+                speed=0.15,
             )
             return jsonify({})
 
