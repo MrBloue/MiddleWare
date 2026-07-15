@@ -56,3 +56,7 @@ qtcreator-*
 
 # Catkin custom files
 CATKIN_IGNORE
+
+# Cross-compilation build artifacts
+cross-build/build-libqi/
+cross-build/install-arm64/

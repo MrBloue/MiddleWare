@@ -812,7 +812,7 @@ function getGroupDiv(placeholderId, translationX, translationY, imageInfo) {
 	div += "style='transform:  translate(" + translationX + "em, " + translationY + "em);'>"	
 	if(imageInfo[0].length){
 		div += "<img src='" + imageInfo[0] + "' width='100\%' alt='" + imageInfo[1] +"' ";
-		div += "onClick='groupButtonClick(\""+ placeholderId +"\")' ondblclick='groupButtonDblClick(\""+ placeholderId +"\")' />"
+		div += "onClick='groupButtonDblClick(\""+ placeholderId +"\")' />"
 	}
 	else
 		div += "<p>" + imageInfo[1] + "</p>";
@@ -870,7 +870,7 @@ function makeSpinner( idSpinnerWrapper) {
 }
 
 
-function hideEverything() {	
+function hideEverything() {
 	for( var i = 0; i < infoList.length; i++) {
 		$("#group-info-" + i).show();
 		$("#group-text-" + i).show();
@@ -897,24 +897,24 @@ function showInfo() {
 				$(id).hide();
 		}
 
-
 	var visible = false;
 	for( var g_id = 0; g_id < infoList.length; g_id++)
 		if($("#group-text-" + g_id).is(":visible")) {
 			visible = true;
 			break;
 		}
-	
-	if(visible)
+
+	if(visible) {
 		for( var g_id = 0; g_id < infoList.length; g_id++) {
 			$("#group-info-" + g_id).hide();
 			$("#group-text-" + g_id).hide();
 		}
-	else
+	} else {
 		for( var g_id = 0; g_id < infoList.length; g_id++) {
 			$("#group-info-" + g_id).show();
 			$("#group-text-" + g_id).show();
 		}
+	}
 }
 
 
@@ -950,25 +950,20 @@ function groupButtonClick( placeholderId ) {
 
 
 function groupButtonDblClick( placeholderId ) {
-	for( var g_id = 0; g_id < infoList.length; g_id++) {
-		$("#group-info-" + g_id).hide();
-		$("#group-text-" + g_id).hide();
+	for( var i = 0; i < infoList.length; i++) {
+		$("#group-info-" + i).hide();
+		$("#group-text-" + i).hide();
 	}
-	
 	var idCommandsWrapper = "commands-list";
 	var group_id = placeholderId.split("-")[2];
 	for( var g_id = 0; g_id < commandsList.length; g_id++)
-		if(g_id != group_id)
-			for( var c_id = 0; c_id < commandsList[g_id][1].length; c_id++) {
-				var id = "#" + idCommandsWrapper + "-" + g_id + "-" + c_id;
+		for( var c_id = 0; c_id < commandsList[g_id][1].length; c_id++) {
+			var id = "#" + idCommandsWrapper + "-" + g_id + "-" + c_id;
+			if(g_id == group_id)
+				$(id).show();
+			else
 				$(id).hide();
-			}
-
-	g_id = group_id;
-	for( var c_id = 0; c_id < commandsList[g_id][1].length; c_id++) {
-		var id = "#" + idCommandsWrapper + "-" + g_id + "-" + c_id;
-			$(id).toggle();
-	}
+		}
 
 }
 

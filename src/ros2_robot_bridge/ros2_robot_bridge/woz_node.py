@@ -31,6 +31,7 @@ except ImportError:
     _HAS_FLASK = False
 
 import ros2_robot_bridge.woz_states as _s  # noqa: E402
+from ros2_robot_bridge.robot_discovery import RobotDiscovery  # noqa: E402
 from ros2_robot_bridge.nao_behavior_tables import (  # noqa: E402
     BEHAVIORS as _NAO_BEHAVIORS,
     QT_TO_NAO_BEHAVIOR as _QT_TO_NAO_BEHAVIOR,
@@ -194,7 +195,10 @@ class _RobotSlot:
             try:
                 life = s.service('ALAutonomousLife')
                 life.setState('disabled')
-                self._motion.wakeUp()
+            except Exception:
+                pass
+            try:
+                self._motion.setStiffnesses('Body', 1.0)
             except Exception:
                 pass
             self.connected  = True
@@ -264,9 +268,10 @@ class _RobotSlot:
     def _do_move(self, motion_name: str, speed: float):
         if not motion_name:
             return
+        mn_lower = motion_name.lower()
 
         # Posture
-        posture = _SLOT_POSTURES.get(motion_name.lower())
+        posture = _SLOT_POSTURES.get(mn_lower)
         if posture and self._posture:
             self._posture.goToPosture(posture, max(0.1, min(1.0, speed)))
             return
@@ -297,16 +302,16 @@ class _RobotSlot:
         # Named gesture / behavior — resolve via nao_behavior_tables
         if self._behavior:
             try:
-                if motion_name in _NAO_BEHAVIORS:
-                    self._behavior.runBehavior(_NAO_BEHAVIORS[motion_name])
+                if mn_lower in _NAO_BEHAVIORS:
+                    self._behavior.runBehavior(_NAO_BEHAVIORS[mn_lower])
                     return
-                if motion_name in _QT_TO_NAO_BEHAVIOR:
-                    nao_name = _QT_TO_NAO_BEHAVIOR[motion_name]
+                if mn_lower in _QT_TO_NAO_BEHAVIOR:
+                    nao_name = _QT_TO_NAO_BEHAVIOR[mn_lower]
                     if nao_name and nao_name in _NAO_BEHAVIORS:
                         self._behavior.runBehavior(_NAO_BEHAVIORS[nao_name])
                         return
-                if motion_name in _QT_TO_NAO_MOTION:
-                    nao_name = _QT_TO_NAO_MOTION[motion_name]
+                if mn_lower in _QT_TO_NAO_MOTION:
+                    nao_name = _QT_TO_NAO_MOTION[mn_lower]
                     if nao_name and nao_name in _NAO_BEHAVIORS:
                         self._behavior.runBehavior(_NAO_BEHAVIORS[nao_name])
                         return
@@ -321,8 +326,8 @@ class _RobotSlot:
                 self._log.warning(f'[WOZ] Slot {self.rid} raw behavior error ({motion_name}): {exc}')
 
         # Joint-angle gesture sequences (wave, nod, shake_head, arms_open, peekaboo, …)
-        if motion_name in _NAO_GESTURES and self._motion:
-            gesture = _NAO_GESTURES[motion_name]
+        if mn_lower in _NAO_GESTURES and self._motion:
+            gesture = _NAO_GESTURES[mn_lower]
             steps = gesture if isinstance(gesture, list) else (
                 gesture.get('init', []) + gesture.get('loop', []) + gesture.get('cleanup', [])
             )
@@ -467,6 +472,9 @@ class WozNode(Node):
         self._next_rid     = 0
         self._robots_lock  = threading.Lock()
 
+        self._discovery = RobotDiscovery()
+        self._discovery.start()
+
         if not _HAS_FLASK:
             self.get_logger().error('[WOZ] flask not installed — pip install flask')
             return
@@ -550,7 +558,6 @@ def _register_routes(app: 'Flask', node: WozNode):
     @app.route('/scenarios')
     @app.route('/reactions')
     @app.route('/maison')
-    @app.route('/theatre')
     @app.route('/macros')
     @app.route('/vocal')
     def tab_legacy():
@@ -586,6 +593,18 @@ def _register_routes(app: 'Flask', node: WozNode):
     def robots_status():
         return jsonify(node.all_robots())
 
+    @app.route('/robots/scan')
+    def robots_scan():
+        return jsonify({
+            'scanning': node._discovery.scanning,
+            'robots':   node._discovery.robots,
+        })
+
+    @app.route('/robots/scan/refresh', methods=['POST'])
+    def robots_scan_refresh():
+        node._discovery.refresh()
+        return jsonify({'ok': True})
+
     # ── Per-robot pages ───────────────────────────────────────────────────────
 
     def _slot_ok(rid: int) -> bool:
@@ -602,13 +621,10 @@ def _register_routes(app: 'Flask', node: WozNode):
                                        robot_type=slot.robot_type,
                                        connecting=slot.connecting,
                                        conn_error=slot.error or 'Robot non connecté')
-            fname  = request.form.get('fname', '').strip()
+            fname  = request.form.get('fname', '').strip() or 'Enfant'
             lname  = request.form.get('lname', '').strip()
-            fname2 = request.form.get('fname2', '').strip()
-            if not fname or not lname or not fname2:
-                return render_template('login.html', rid=rid, robot_ip=slot.host,
-                                       robot_type=slot.robot_type, error=True)
-            slot.child_name = fname
+            fname2 = request.form.get('fname2', '').strip() or 'Accompagnant'
+            slot.child_name = f'{fname} {lname}'.strip()
             slot.adult_name = fname2
             session[f'rid_{rid}_ok'] = True
             slot.enter_state('begin')
@@ -636,10 +652,6 @@ def _register_routes(app: 'Flask', node: WozNode):
     @app.route('/r/<int:rid>/reactions')
     def robot_reactions(rid):
         return _render_tab('reactions.html', rid)
-
-    @app.route('/r/<int:rid>/theatre')
-    def robot_theatre(rid):
-        return _render_tab('theatre.html', rid)
 
     @app.route('/r/<int:rid>/maison')
     def robot_maison(rid):
@@ -713,6 +725,7 @@ def _register_routes(app: 'Flask', node: WozNode):
             slot.exec_cmd(
                 action='move',
                 motion_name=f'HeadYaw:{math.radians(yaw):.4f},HeadPitch:{math.radians(pitch):.4f}',
+                speed=0.15,
             )
             return jsonify({})
 
