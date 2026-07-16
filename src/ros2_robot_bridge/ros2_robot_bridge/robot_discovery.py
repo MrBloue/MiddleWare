@@ -30,14 +30,22 @@ except ImportError:
     _HAS_ZEROCONF = False
 
 
-def _local_ip() -> str:
-    """Return the primary local IPv4 address."""
-    with socket.socket(socket.AF_INET, socket.SOCK_DGRAM) as s:
-        try:
-            s.connect(('8.8.8.8', 80))
-            return s.getsockname()[0]
-        except Exception:
-            return '127.0.0.1'
+def _local_ips() -> list[str]:
+    """Return all non-loopback local IPv4 addresses across all interfaces."""
+    seen: set[str] = set()
+    ips: list[str] = []
+    # Probe several destinations to capture IPs on different interfaces/subnets
+    for dest in ('10.0.0.0', '192.168.0.0', '172.16.0.0', '8.8.8.8'):
+        with socket.socket(socket.AF_INET, socket.SOCK_DGRAM) as s:
+            try:
+                s.connect((dest, 80))
+                ip = s.getsockname()[0]
+                if not ip.startswith('127.') and ip not in seen:
+                    seen.add(ip)
+                    ips.append(ip)
+            except Exception:
+                pass
+    return ips
 
 
 def _probe(ip: str, port: int, robot_type: str) -> dict | None:
@@ -129,11 +137,17 @@ class RobotDiscovery:
         with self._lock:
             self._scanning = True
         try:
-            local = _local_ip()
-            if local.startswith('127.'):
+            locals_ = _local_ips()
+            if not locals_:
                 return
-            network = ipaddress.ip_network(f'{local}/24', strict=False)
-            results = _scan_subnet(network)
+            results = []
+            seen_nets: set[str] = set()
+            for local in locals_:
+                net = ipaddress.ip_network(f'{local}/24', strict=False)
+                if str(net) in seen_nets:
+                    continue
+                seen_nets.add(str(net))
+                results.extend(_scan_subnet(net))
             with self._lock:
                 self._scan = results
         finally:
