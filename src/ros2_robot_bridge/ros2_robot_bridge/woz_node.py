@@ -289,8 +289,7 @@ class _RobotSlot:
                 self._motion.stopMove()
             else:
                 try:
-                    life = self._qi.service('ALAutonomousLife')
-                    life.setState('disabled')
+                    self._motion.setStiffnesses('Body', 1.0)
                 except Exception:
                     pass
                 self._motion.moveToward(x * speed, y * speed, theta * speed)
