@@ -218,6 +218,11 @@ class _RobotSlot:
             try:
                 from ros2_robot_bridge.robot_discovery import _naoqi_version_label
                 system = s.service('ALSystem')
+                robot_name = system.robotName().lower()
+                if 'pepper' in robot_name:
+                    self.robot_type = 'pepper'
+                elif 'nao' in robot_name:
+                    self.robot_type = 'nao'
                 naoqi_ver = system.systemVersion()
                 label = _naoqi_version_label(self.robot_type, naoqi_ver)
                 if label:
