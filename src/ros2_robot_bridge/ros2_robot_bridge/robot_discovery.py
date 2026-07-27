@@ -77,26 +77,10 @@ def _naoqi_version_label(robot_type: str, naoqi_ver: str) -> str:
     return ''
 
 
-def _detect_naoqi_type_and_version(ip: str, hostname: str) -> tuple[str, str]:
-    """Return (robot_type, version_label) for a reachable NAOqi host (port 9559).
-
-    Priority for type: reverse-DNS hostname keywords → HTTP body → default 'nao'.
-    Version comes from the NAOqi system version embedded in the HTTP response.
-    """
-    low = hostname.lower()
-    if 'pepper' in low:
-        robot_type = 'pepper'
-    elif 'aldebaran' in low and 'nao' not in low:
-        # Pepper robots register under Aldebaran's internal domain; NAO robots don't.
-        robot_type = 'pepper'
-    elif 'nao' in low:
-        robot_type = 'nao'
-    else:
-        robot_type = None  # resolve via HTTP below
-
-    version_label = ''
+def _http_fetch(ip: str, port: int, timeout: float = 0.5) -> bytes:
+    """Fetch the root HTTP page from ip:port; return raw response bytes or b''."""
     try:
-        with socket.create_connection((ip, 80), timeout=0.5) as s:
+        with socket.create_connection((ip, port), timeout=timeout) as s:
             s.sendall(b'GET / HTTP/1.0\r\nHost: robot\r\nConnection: close\r\n\r\n')
             data = b''
             while True:
@@ -106,16 +90,66 @@ def _detect_naoqi_type_and_version(ip: str, hostname: str) -> tuple[str, str]:
                 data += chunk
                 if len(data) > 16384:
                     break
-        body = data.lower()
-        if robot_type is None:
-            robot_type = 'pepper' if b'pepper' in body else 'nao'
-        # NAOqi embeds its version in the web UI as e.g. "2.8.6.23"
-        import re
-        m = re.search(rb'(\d+\.\d+\.\d+\.\d+)', data)
-        if m:
-            version_label = _naoqi_version_label(robot_type, m.group(1).decode())
+        return data
     except Exception:
-        pass
+        return b''
+
+
+def _naoqi_banner(ip: str) -> bytes:
+    """Read the first bytes NAOqi sends after a raw TCP connect on port 9559."""
+    try:
+        with socket.create_connection((ip, 9559), timeout=0.5) as s:
+            return s.recv(256)
+    except Exception:
+        return b''
+
+
+def _detect_naoqi_type_and_version(ip: str, hostname: str) -> tuple[str, str]:
+    """Return (robot_type, version_label) for a reachable NAOqi host (port 9559).
+
+    Priority for type:
+      1. Reverse-DNS hostname keywords (pepper / aldebaran / nao)
+      2. HTTP response on port 80 or 8080 — look for 'pepper' in body
+      3. NAOqi binary banner on port 9559 — robot name embedded in handshake
+      4. Default 'nao'
+    Version extracted from the 4-part version string in the HTTP response.
+    """
+    import re
+
+    low = hostname.lower()
+    if 'pepper' in low:
+        robot_type = 'pepper'
+    elif 'aldebaran' in low and 'nao' not in low:
+        # Pepper robots register under Aldebaran's internal domain; NAO robots don't.
+        robot_type = 'pepper'
+    elif 'nao' in low:
+        robot_type = 'nao'
+    else:
+        robot_type = None
+
+    version_label = ''
+    http_data = b''
+
+    if robot_type is None or not version_label:
+        for port in (80, 8080):
+            data = _http_fetch(ip, port)
+            if data:
+                http_data = data
+                break
+
+    if http_data:
+        body = http_data.lower()
+        if robot_type is None:
+            robot_type = 'pepper' if b'pepper' in body else None
+        m = re.search(rb'(\d+\.\d+\.\d+\.\d+)', http_data)
+        if m:
+            version_label = _naoqi_version_label(robot_type or 'nao', m.group(1).decode())
+
+    # Last resort: read the NAOqi binary handshake — it embeds the robot name
+    if robot_type is None:
+        banner = _naoqi_banner(ip)
+        if b'pepper' in banner.lower():
+            robot_type = 'pepper'
 
     return (robot_type or 'nao', version_label)
 
