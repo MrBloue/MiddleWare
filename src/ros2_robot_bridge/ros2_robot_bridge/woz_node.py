@@ -489,7 +489,9 @@ class WozNode(Node):
         threading.Thread(target=self._run_flask, args=(host, port), daemon=True).start()
         threading.Thread(target=_get_whisper, daemon=True).start()
 
-        display_host = host if host != '0.0.0.0' else socket.gethostbyname(socket.gethostname())
+        from ros2_robot_bridge.robot_discovery import _local_ips
+        _ips = _local_ips() if host == '0.0.0.0' else [host]
+        display_host = _ips[0] if _ips else host
         self.get_logger().info(f'[WOZ] Web interface → https://{display_host}:{port}')
 
     # ── Robot management ──────────────────────────────────────────────────────

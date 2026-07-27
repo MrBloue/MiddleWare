@@ -32,19 +32,30 @@ except ImportError:
 
 def _local_ips() -> list[str]:
     """Return all non-loopback local IPv4 addresses across all interfaces."""
-    seen: set[str] = set()
+    import re
+    import subprocess
     ips: list[str] = []
-    # Probe several destinations to capture IPs on different interfaces/subnets
-    for dest in ('10.0.0.0', '192.168.0.0', '172.16.0.0', '8.8.8.8'):
-        with socket.socket(socket.AF_INET, socket.SOCK_DGRAM) as s:
-            try:
-                s.connect((dest, 80))
-                ip = s.getsockname()[0]
-                if not ip.startswith('127.') and ip not in seen:
-                    seen.add(ip)
-                    ips.append(ip)
-            except Exception:
-                pass
+    seen: set[str] = set()
+    try:
+        out = subprocess.check_output(['ip', '-4', 'addr', 'show'], text=True, timeout=2)
+        for ip in re.findall(r'inet (\d+\.\d+\.\d+\.\d+)', out):
+            if not ip.startswith('127.') and ip not in seen:
+                seen.add(ip)
+                ips.append(ip)
+    except Exception:
+        pass
+    if not ips:
+        # Fallback: probe routing table with multiple destinations
+        for dest in ('10.0.0.0', '192.168.0.0', '172.16.0.0', '8.8.8.8'):
+            with socket.socket(socket.AF_INET, socket.SOCK_DGRAM) as s:
+                try:
+                    s.connect((dest, 80))
+                    ip = s.getsockname()[0]
+                    if not ip.startswith('127.') and ip not in seen:
+                        seen.add(ip)
+                        ips.append(ip)
+                except Exception:
+                    pass
     return ips
 
 
