@@ -137,7 +137,7 @@
                 <form id="add-form" action="/robots" method="post" onsubmit="return onSubmit()">
 
                     <label for="robot_type">Type de robot :</label>
-                    <select id="robot_type" name="robot_type" onchange="updateVersions()">
+                    <select id="robot_type" name="robot_type" onchange="updateVersions('')">
                         <option value="nao">NAO</option>
                         <option value="pepper">Pepper</option>
                         <option value="qtrobot">QTrobot</option>
@@ -170,16 +170,28 @@ var VERSIONS = {
     'pepper':  ['v1', 'v1.8', 'v2'],
     'qtrobot': ['qt1', 'qt2']
 };
+var VERSION_LABELS = {
+    'nao':     {'v5': 'NAOqi 2.1', 'v6': 'NAOqi 2.8'},
+    'pepper':  {'v1': 'NAOqi 2.4', 'v1.8': 'NAOqi 2.5', 'v2': 'NAOqi 2.9'},
+    'qtrobot': {'qt1': 'ROS1', 'qt2': 'ROS2'}
+};
 
-function updateVersions() {
-    var type = document.getElementById('robot_type').value;
-    var sel  = document.getElementById('robot_version');
+function updateVersions(preselect) {
+    var type   = document.getElementById('robot_type').value;
+    var sel    = document.getElementById('robot_version');
+    var labels = VERSION_LABELS[type] || {};
     sel.innerHTML = '';
     VERSIONS[type].forEach(function(v) {
         var opt = document.createElement('option');
-        opt.value = v; opt.text = v;
+        opt.value = v;
+        opt.text  = labels[v] || v;
         sel.appendChild(opt);
     });
+    if (preselect) {
+        for (var i = 0; i < sel.options.length; i++) {
+            if (sel.options[i].value === preselect) { sel.selectedIndex = i; break; }
+        }
+    }
 }
 
 function onSubmit() {
@@ -190,7 +202,7 @@ function onSubmit() {
     return true;
 }
 
-updateVersions();
+updateVersions('');
 
 // Network discovery
 function renderScan(data) {
@@ -212,7 +224,7 @@ function renderScan(data) {
                 '<strong>' + r.name + '</strong>' +
                 '<small>' + r.robot_type.toUpperCase() + ' — ' + r.ip + ':' + r.port + '</small>' +
             '</div>' +
-            '<button class="btn-use" onclick="useRobot(\'' + r.ip + '\',\'' + r.robot_type + '\')">' +
+            '<button class="btn-use" onclick="useRobot(\'' + r.ip + '\',\'' + r.robot_type + '\',\'' + (r.version || '') + '\')">' +
                 'Utiliser' +
             '</button>' +
         '</li>';
@@ -221,13 +233,13 @@ function renderScan(data) {
     el.innerHTML = html + '</ul>';
 }
 
-function useRobot(ip, type) {
+function useRobot(ip, type, version) {
     document.getElementById('robot_ip').value = ip;
     var sel = document.getElementById('robot_type');
     for (var i = 0; i < sel.options.length; i++) {
         if (sel.options[i].value === type) { sel.selectedIndex = i; break; }
     }
-    updateVersions();
+    updateVersions(version || '');
     document.getElementById('robot_ip').scrollIntoView({behavior: 'smooth'});
 }
 
