@@ -59,6 +59,67 @@ def _local_ips() -> list[str]:
     return ips
 
 
+def _naoqi_version_label(robot_type: str, naoqi_ver: str) -> str:
+    """Convert a NAOqi version string (e.g. '2.8.6.23') to a generation label."""
+    try:
+        major, minor = (int(x) for x in naoqi_ver.split('.')[:2])
+    except Exception:
+        return ''
+    if robot_type == 'nao':
+        return 'v6' if (major, minor) >= (2, 8) else 'v5'
+    if robot_type == 'pepper':
+        # Pepper body generation maps roughly to NAOqi major.minor
+        if (major, minor) >= (2, 9):
+            return 'v2'
+        if (major, minor) >= (2, 5):
+            return 'v1.8'
+        return 'v1'
+    return ''
+
+
+def _detect_naoqi_type_and_version(ip: str, hostname: str) -> tuple[str, str]:
+    """Return (robot_type, version_label) for a reachable NAOqi host (port 9559).
+
+    Priority for type: reverse-DNS hostname keywords → HTTP body → default 'nao'.
+    Version comes from the NAOqi system version embedded in the HTTP response.
+    """
+    low = hostname.lower()
+    if 'pepper' in low:
+        robot_type = 'pepper'
+    elif 'aldebaran' in low and 'nao' not in low:
+        # Pepper robots register under Aldebaran's internal domain; NAO robots don't.
+        robot_type = 'pepper'
+    elif 'nao' in low:
+        robot_type = 'nao'
+    else:
+        robot_type = None  # resolve via HTTP below
+
+    version_label = ''
+    try:
+        with socket.create_connection((ip, 80), timeout=0.5) as s:
+            s.sendall(b'GET / HTTP/1.0\r\nHost: robot\r\nConnection: close\r\n\r\n')
+            data = b''
+            while True:
+                chunk = s.recv(4096)
+                if not chunk:
+                    break
+                data += chunk
+                if len(data) > 16384:
+                    break
+        body = data.lower()
+        if robot_type is None:
+            robot_type = 'pepper' if b'pepper' in body else 'nao'
+        # NAOqi embeds its version in the web UI as e.g. "2.8.6.23"
+        import re
+        m = re.search(rb'(\d+\.\d+\.\d+\.\d+)', data)
+        if m:
+            version_label = _naoqi_version_label(robot_type, m.group(1).decode())
+    except Exception:
+        pass
+
+    return (robot_type or 'nao', version_label)
+
+
 def _probe(ip: str, port: int, robot_type: str) -> dict | None:
     """Return a robot entry if ip:port accepts a TCP connection."""
     try:
@@ -68,7 +129,10 @@ def _probe(ip: str, port: int, robot_type: str) -> dict | None:
             name = socket.gethostbyaddr(ip)[0].rstrip('.')
         except Exception:
             name = ip
-        return {'ip': ip, 'port': port, 'robot_type': robot_type, 'name': name}
+        version = ''
+        if port == 9559 and robot_type == 'nao':
+            robot_type, version = _detect_naoqi_type_and_version(ip, name)
+        return {'ip': ip, 'port': port, 'robot_type': robot_type, 'name': name, 'version': version}
     except Exception:
         return None
 

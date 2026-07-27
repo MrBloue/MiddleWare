@@ -194,16 +194,39 @@ class _RobotSlot:
             self._audio    = s.service('ALAudioDevice')
             try:
                 life = s.service('ALAutonomousLife')
-                life.setState('disabled')
+                life_disabled = life.getState() == 'disabled'
             except Exception:
-                pass
+                life = None
+                life_disabled = False
             try:
-                self._motion.setStiffnesses('Body', 1.0)
+                already_up = self._motion.robotIsWakeUp()
+            except Exception:
+                already_up = False
+            if not (life_disabled and already_up):
+                if not life_disabled and life is not None:
+                    try:
+                        life.setState('disabled')
+                    except Exception:
+                        pass
+                try:
+                    self._motion.wakeUp()
+                except Exception:
+                    try:
+                        self._motion.setStiffnesses('Body', 1.0)
+                    except Exception:
+                        pass
+            try:
+                from ros2_robot_bridge.robot_discovery import _naoqi_version_label
+                system = s.service('ALSystem')
+                naoqi_ver = system.systemVersion()
+                label = _naoqi_version_label(self.robot_type, naoqi_ver)
+                if label:
+                    self.robot_version = label
             except Exception:
                 pass
             self.connected  = True
             self.connecting = False
-            self._log.info(f'[WOZ] Slot {self.rid} connected: {self.host}')
+            self._log.info(f'[WOZ] Slot {self.rid} connected: {self.host} ({self.robot_type} {self.robot_version})')
         except Exception as exc:
             self.connecting = False
             self.error      = str(exc)
