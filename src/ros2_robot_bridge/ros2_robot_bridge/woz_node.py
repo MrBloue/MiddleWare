@@ -37,6 +37,7 @@ from ros2_robot_bridge.nao_behavior_tables import (  # noqa: E402
     QT_TO_NAO_BEHAVIOR as _QT_TO_NAO_BEHAVIOR,
     QT_TO_NAO_MOTION as _QT_TO_NAO_MOTION,
     GESTURES as _NAO_GESTURES,
+    BEHAVIOR_FALLBACKS as _BEHAVIOR_FALLBACKS,
 )
 
 # ── Whisper (lazy) ────────────────────────────────────────────────────────────
@@ -354,6 +355,16 @@ class _RobotSlot:
                         return
             except Exception as exc:
                 self._log.warning(f'[WOZ] Slot {self.rid} runBehavior error ({motion_name}): {exc}')
+                # Try a known-good fallback for robots with a reduced animation set
+                failed_path = _NAO_BEHAVIORS.get(mn_lower) or \
+                    (_NAO_BEHAVIORS.get(_QT_TO_NAO_BEHAVIOR.get(mn_lower, '') or '') ) or \
+                    (_NAO_BEHAVIORS.get(_QT_TO_NAO_MOTION.get(mn_lower, '') or '') )
+                if failed_path and failed_path in _BEHAVIOR_FALLBACKS:
+                    try:
+                        self._behavior.runBehavior(_BEHAVIOR_FALLBACKS[failed_path])
+                        return
+                    except Exception:
+                        pass
             # Last resort: try running as a raw behavior path
             try:
                 if self._behavior.isBehaviorInstalled(motion_name):
