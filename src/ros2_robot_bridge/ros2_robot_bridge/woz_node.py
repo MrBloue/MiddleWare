@@ -215,6 +215,16 @@ class _RobotSlot:
                         self._motion.setStiffnesses('Body', 1.0)
                     except Exception:
                         pass
+            # Disable background autonomous movements (Pepper: breathing/shifting;
+            # silently no-ops on NAO which lacks this service).
+            try:
+                s.service('ALBackgroundMovement').setEnabled(False)
+            except Exception:
+                pass
+            try:
+                s.service('ALListeningMovement').setEnabled(False)
+            except Exception:
+                pass
             try:
                 from ros2_robot_bridge.robot_discovery import _naoqi_version_label
                 system = s.service('ALSystem')
