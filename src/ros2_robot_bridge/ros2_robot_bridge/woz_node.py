@@ -199,23 +199,39 @@ class _RobotSlot:
             except Exception:
                 life = None
                 life_disabled = False
-            try:
-                already_up = self._motion.robotIsWakeUp()
-            except Exception:
-                already_up = False
-            if not (life_disabled and already_up):
-                if not life_disabled and life is not None:
-                    try:
-                        life.setState('disabled')
-                    except Exception:
-                        pass
+            if not life_disabled and life is not None:
                 try:
-                    self._motion.wakeUp()
-                except Exception:
+                    # stopFocus() first so Pepper's current activity releases
+                    # its lock before we transition to disabled state.
                     try:
-                        self._motion.setStiffnesses('Body', 1.0)
-                    except Exception:
-                        pass
+                        life.stopFocus()
+                        self._log.info(f'[WOZ] Slot {self.rid} autonomous life stopFocus done')
+                    except Exception as exc:
+                        self._log.info(f'[WOZ] Slot {self.rid} stopFocus: {exc}')
+                    life.setState('disabled')
+                    self._log.info(f'[WOZ] Slot {self.rid} autonomous life setState disabled done, state={life.getState()!r}')
+                except Exception as exc:
+                    self._log.warning(f'[WOZ] Slot {self.rid} failed to disable autonomous life: {exc}')
+            elif life is not None:
+                self._log.info(f'[WOZ] Slot {self.rid} autonomous life already disabled')
+            # Stop any stuck behaviors from previous sessions before stiffening.
+            try:
+                running = self._behavior.getRunningBehaviors()
+                if running:
+                    self._log.info(f'[WOZ] Slot {self.rid} stopping running behaviors: {running}')
+                    self._behavior.stopAllBehaviors()
+            except Exception as exc:
+                self._log.info(f'[WOZ] Slot {self.rid} stopAllBehaviors: {exc}')
+            # Always stiffen after setup.
+            try:
+                self._motion.wakeUp()
+                self._log.info(f'[WOZ] Slot {self.rid} wakeUp done, isWakeUp={self._motion.robotIsWakeUp()}')
+            except Exception as exc:
+                self._log.warning(f'[WOZ] Slot {self.rid} wakeUp failed: {exc}')
+                try:
+                    self._motion.setStiffnesses('Body', 1.0)
+                except Exception:
+                    pass
             # Disable background autonomous movements (Pepper: breathing/shifting;
             # silently no-ops on NAO which lacks this service).
             try:
@@ -341,7 +357,10 @@ class _RobotSlot:
         if self._behavior:
             try:
                 if mn_lower in _NAO_BEHAVIORS:
-                    self._behavior.runBehavior(_NAO_BEHAVIORS[mn_lower])
+                    path = _NAO_BEHAVIORS[mn_lower]
+                    self._log.info(f'[WOZ] Slot {self.rid} runBehavior → {path!r}')
+                    self._behavior.runBehavior(path)
+                    self._log.info(f'[WOZ] Slot {self.rid} runBehavior done: {path!r}')
                     return
                 if mn_lower in _QT_TO_NAO_BEHAVIOR:
                     nao_name = _QT_TO_NAO_BEHAVIOR[mn_lower]
