@@ -974,3 +974,59 @@ QT_TO_NAO_BEHAVIOR = {
 # GESTURES aliases for BEHAVIORS names that may not be installed on all NAOs.
 # These allow _do_move to fall back to joint-angle sequences when runBehavior fails.
 GESTURES["applause"] = GESTURES["clapping"]
+
+# Fallback behavior paths for robots with a reduced animation set.
+# Maps missing behavior path → nearest installed alternative.
+# Only used when runBehavior() raises an exception.
+BEHAVIOR_FALLBACKS = {
+    # Gestures missing from some Pepper units
+    "animations/Stand/Gestures/Applause_1":          "animations/Stand/Gestures/Enthusiastic_3",
+    "animations/Stand/Gestures/Caress_1":            "animations/Stand/Gestures/Please_1",
+    "animations/Stand/Gestures/Caress_2":            "animations/Stand/Gestures/Please_2",
+    "animations/Stand/Gestures/CatchFly_1":          "animations/Stand/Gestures/Look_1",
+    "animations/Stand/Gestures/CatchFly_2":          "animations/Stand/Gestures/Look_2",
+    "animations/Stand/Gestures/Choice_2":            "animations/Stand/Gestures/Choice_1",
+    "animations/Stand/Gestures/Claw_1":              "animations/Stand/Gestures/IDontKnow_1",
+    "animations/Stand/Gestures/Claw_2":              "animations/Stand/Gestures/IDontKnow_2",
+    "animations/Stand/Gestures/Coaxing_1":           "animations/Stand/Gestures/CalmDown_1",
+    "animations/Stand/Gestures/Coaxing_2":           "animations/Stand/Gestures/CalmDown_2",
+    "animations/Stand/Gestures/CountOne_2":          "animations/Stand/Gestures/CountOne_1",
+    "animations/Stand/Gestures/CountTwo_2":          "animations/Stand/Gestures/CountTwo_1",
+    "animations/Stand/Gestures/CountThree_2":        "animations/Stand/Gestures/CountThree_1",
+    "animations/Stand/Gestures/CountFour_2":         "animations/Stand/Gestures/CountFour_1",
+    "animations/Stand/Gestures/CountFive_2":         "animations/Stand/Gestures/CountFive_1",
+    "animations/Stand/Gestures/CountMore_2":         "animations/Stand/Gestures/CountMore_1",
+    "animations/Stand/Gestures/Enthusiastic_1":      "animations/Stand/Gestures/Enthusiastic_3",
+    "animations/Stand/Gestures/Enthusiastic_2":      "animations/Stand/Gestures/Enthusiastic_4",
+    "animations/Stand/Gestures/Everything_5":        "animations/Stand/Gestures/Everything_4",
+    "animations/Stand/Gestures/Explain_9":           "animations/Stand/Gestures/Explain_8",
+    "animations/Stand/Gestures/Freeze_1":            "animations/Stand/Gestures/Thinking_1",
+    "animations/Stand/Gestures/Hey_5":               "animations/Stand/Gestures/Hey_4",
+    "animations/Stand/Gestures/Hungry_1":            "animations/Stand/Gestures/Yum_1",
+    "animations/Stand/Gestures/JointHands_1":        "animations/Stand/Gestures/Give_1",
+    "animations/Stand/Gestures/JointHands_2":        "animations/Stand/Gestures/Give_2",
+    "animations/Stand/Gestures/JointHands_3":        "animations/Stand/Gestures/Give_3",
+    "animations/Stand/Gestures/Me_3":               "animations/Stand/Gestures/Me_2",
+    "animations/Stand/Gestures/Me_5":               "animations/Stand/Gestures/Me_4",
+    "animations/Stand/Gestures/Me_6":               "animations/Stand/Gestures/Me_7",
+    "animations/Stand/Gestures/Shoot_1":             "animations/Stand/Gestures/Hey_1",
+    # Emotions
+    "animations/Stand/Emotions/Neutral/Annoyed_1":   "animations/Stand/Emotions/Neutral/Alienated_1",
+    "animations/Stand/Emotions/Neutral/Hello_1":     "animations/Stand/Emotions/Neutral/AskForAttention_1",
+    # BodyTalk — cap at highest installed index (16)
+    "animations/Stand/BodyTalk/Speaking/BodyTalk_17": "animations/Stand/BodyTalk/Speaking/BodyTalk_16",
+    "animations/Stand/BodyTalk/Speaking/BodyTalk_18": "animations/Stand/BodyTalk/Speaking/BodyTalk_16",
+    "animations/Stand/BodyTalk/Speaking/BodyTalk_19": "animations/Stand/BodyTalk/Speaking/BodyTalk_16",
+    "animations/Stand/BodyTalk/Speaking/BodyTalk_20": "animations/Stand/BodyTalk/Speaking/BodyTalk_16",
+    "animations/Stand/BodyTalk/Speaking/BodyTalk_21": "animations/Stand/BodyTalk/Speaking/BodyTalk_16",
+    "animations/Stand/BodyTalk/Speaking/BodyTalk_22": "animations/Stand/BodyTalk/Speaking/BodyTalk_16",
+    "animations/Stand/BodyTalk/Listening/ListeningLeft_1":  "animations/Stand/BodyTalk/Listening/Listening_2",
+    "animations/Stand/BodyTalk/Listening/ListeningRight_1": "animations/Stand/BodyTalk/Listening/Listening_3",
+    # Waiting
+    "animations/Stand/Waiting/AirJuggle_1":          "animations/Stand/Waiting/AirGuitar_1",
+    "animations/Stand/Waiting/FunnySlide_1":         "animations/Stand/Waiting/FunnyDancer_1",
+    "animations/Stand/Waiting/Headbang_1":           "animations/Stand/Waiting/Bandmaster_1",
+    "animations/Stand/Waiting/Stretch_3":            "animations/Stand/Waiting/Stretch_2",
+    "animations/Stand/Waiting/Vacuum_1":             "animations/Stand/Waiting/ScratchBack_1",
+    "animations/Stand/Waiting/WalkInTheShit_1":      "animations/Stand/Waiting/FunnyDancer_1",
+}
