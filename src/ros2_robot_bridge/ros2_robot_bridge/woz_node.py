@@ -485,7 +485,12 @@ class _RobotSlot:
         self._prog_stop.set()
         self._prog_stop = threading.Event()
         stop = self._prog_stop
-        threading.Thread(target=self._exec_blocks, args=(program, stop), daemon=True).start()
+        def _run():
+            try:
+                self._exec_blocks(program, stop)
+            finally:
+                stop.set()  # signal done only from top level
+        threading.Thread(target=_run, daemon=True).start()
 
     def stop_program(self):
         self._prog_stop.set()
@@ -526,8 +531,6 @@ class _RobotSlot:
                     self._exec_blocks(branch, stop)
             except Exception as exc:
                 self._log.warning(f'[WOZ] Slot {self.rid} program block error ({t}): {exc}')
-        # Mark done so program_running reports False
-        stop.set()
 
     def as_dict(self) -> dict:
         return {

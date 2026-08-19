@@ -229,11 +229,10 @@ function renderBlock(container, block, pathStr, idx) {
 
   var el = document.createElement('div');
   el.className   = 'blk';
-  el.draggable   = true;
+  // NOTE: draggable is on the grip only — keeping the block itself non-draggable
+  // lets child drop-zones (repeat body, if/else branches) receive drag events.
   el.dataset.arrPath = pathStr;
   el.dataset.idx     = idx;
-  el.addEventListener('dragstart', onBlockDragStart);
-  el.addEventListener('dragend',   onBlockDragEnd);
 
   // ── Header bar
   var hdr = document.createElement('div');
@@ -243,6 +242,22 @@ function renderBlock(container, block, pathStr, idx) {
   var grip = document.createElement('span');
   grip.className   = 'blk-grip';
   grip.textContent = '⠿';
+  grip.title       = 'Glisser pour déplacer';
+  grip.draggable   = true;
+  // Capture el, pathStr, idx by value so they survive re-renders
+  (function(blockEl, ap, i) {
+    grip.addEventListener('dragstart', function(e) {
+      e.stopPropagation();
+      dragSrc = { palette: false, fromArr: getArr(ap), fromIdx: i };
+      e.dataTransfer.setData('text/plain', 'block');
+      e.dataTransfer.effectAllowed = 'move';
+      try { e.dataTransfer.setDragImage(blockEl, 12, 12); } catch(ex) {}
+      blockEl.style.opacity = '0.4';
+    });
+    grip.addEventListener('dragend', function() {
+      blockEl.style.opacity = '';
+    });
+  })(el, pathStr, idx);
   hdr.appendChild(grip);
 
   var lbl = document.createElement('span');
