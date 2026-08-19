@@ -606,6 +606,18 @@ bottom_right{
 	background-color: #003a99;
 }
 
+.speed-container {
+	position: fixed;
+	bottom: 430px;
+	left: 20px;
+	display: flex;
+	flex-direction: column;
+	align-items: center;
+	gap: 6px;
+	width: 60px;
+	z-index: 100;
+}
+
 .volume-container {
 	position: fixed;
 	bottom: 260px;

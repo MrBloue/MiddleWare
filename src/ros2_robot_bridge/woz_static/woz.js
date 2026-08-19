@@ -748,9 +748,10 @@ let prevWalkSpeed = 0;
 
 this.GetDir = function() {
     const walking = getCardinalDirection();
-    // Y-axis magnitude scaled 0.0→1.0; push further = faster
+    // Y-axis magnitude × global speed multiplier (set by speed widget)
     const rawMag = Math.min(1.0, Math.abs((movedY - centerY) / maxMoveStick));
-    const walkSpeed = parseFloat(rawMag.toFixed(2));
+    const mult = (typeof window.wozSpeedMult === 'number') ? window.wozSpeedMult : 0.6;
+    const walkSpeed = parseFloat((rawMag * mult).toFixed(2));
 
     const dirChanged = walking !== prevWalk;
     const speedChanged = Math.abs(walkSpeed - prevWalkSpeed) >= 0.12;
@@ -1032,7 +1033,40 @@ function setCommandListOpacity( opacity) {
 
 // ── Shared controls injected on every page ────────────────────────────────────
 
+// Global walk speed multiplier (0.2–1.0), set by speed widget below
+window.wozSpeedMult = parseFloat(localStorage.getItem('woz_walk_speed') || '0.6');
+
 function initSharedControls() {
+    // Speed widget (walk joystick multiplier)
+    var spd = document.createElement('div');
+    spd.id = 'speed-container';
+    spd.className = 'speed-container';
+    spd.innerHTML =
+        '<button class="volume-btn" id="speed-up">+</button>' +
+        '<span class="volume-icon">🏃</span>' +
+        '<span class="volume-level" id="speed-level">3</span>' +
+        '<button class="volume-btn" id="speed-down">-</button>';
+    document.body.appendChild(spd);
+
+    // 5 levels: 0.2, 0.4, 0.6, 0.8, 1.0
+    var speedSteps = [0.2, 0.4, 0.6, 0.8, 1.0];
+    var spdLevel = speedSteps.indexOf(window.wozSpeedMult);
+    if (spdLevel === -1) spdLevel = 2; // default level 3
+    document.getElementById('speed-level').textContent = spdLevel + 1;
+    function applySpeed() {
+        window.wozSpeedMult = speedSteps[spdLevel];
+        localStorage.setItem('woz_walk_speed', String(window.wozSpeedMult));
+        document.getElementById('speed-level').textContent = spdLevel + 1;
+    }
+    document.getElementById('speed-up').addEventListener('click', function() {
+        spdLevel = Math.min(4, spdLevel + 1);
+        applySpeed();
+    });
+    document.getElementById('speed-down').addEventListener('click', function() {
+        spdLevel = Math.max(0, spdLevel - 1);
+        applySpeed();
+    });
+
     // Volume buttons
     var vol = document.createElement('div');
     vol.id = 'volume-container';
