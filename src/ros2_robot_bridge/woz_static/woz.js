@@ -1065,6 +1065,28 @@ function initSharedControls() {
                  data: JSON.stringify({ relax: true }) });
     });
     document.body.appendChild(stop);
+
+    // Complexity level badge — injected into breadcrumb, persists via localStorage
+    var breadcrumb = document.getElementById('breadcrumb');
+    if (breadcrumb) {
+        var LEVEL_LABELS = ['', 'Simple', 'Standard', 'Avancé'];
+        var levelBadge = document.createElement('span');
+        levelBadge.id = 'level-badge';
+        levelBadge.className = 'level-badge';
+        function applyLevel(lvl) {
+            lvl = Math.max(1, Math.min(3, lvl));
+            localStorage.setItem('woz_level', String(lvl));
+            document.body.classList.remove('woz-level-1', 'woz-level-2', 'woz-level-3');
+            document.body.classList.add('woz-level-' + lvl);
+            levelBadge.textContent = 'N' + lvl + ' — ' + LEVEL_LABELS[lvl];
+        }
+        levelBadge.addEventListener('click', function() {
+            var cur = parseInt(localStorage.getItem('woz_level') || '2', 10);
+            applyLevel(cur >= 3 ? 1 : cur + 1);
+        });
+        breadcrumb.insertBefore(levelBadge, breadcrumb.firstChild);
+        applyLevel(parseInt(localStorage.getItem('woz_level') || '2', 10));
+    }
 }
 
 document.addEventListener('DOMContentLoaded', initSharedControls);

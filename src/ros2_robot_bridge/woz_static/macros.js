@@ -279,6 +279,7 @@ function buildLedSelect(id) {
     });
 }
 
+
 function onLoad() {
     renderQuick();
     buildMotionSelect('new-motion-pick');
@@ -333,4 +334,6 @@ function onLoad() {
         pendingMotions = [];
         renderMotionList();
     });
+
+    if (typeof blocksInit === 'function') blocksInit();
 }
