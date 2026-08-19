@@ -279,107 +279,6 @@ function buildLedSelect(id) {
     });
 }
 
-// ── Level 3: sequence programmer ─────────────────────────────────────────────
-
-var _progSteps  = [];
-var _progLoops  = 1;
-var _progRunning = false;
-var _progStopReq = false;
-
-function renderProgSteps() {
-    var el = document.getElementById('prog-step-list');
-    if (!el) return;
-    el.innerHTML = '';
-    if (!_progSteps.length) {
-        el.innerHTML = '<span class="motion-empty">Aucune étape — ajoutez des mouvements ci-dessus</span>';
-        return;
-    }
-    _progSteps.forEach(function(m, i) {
-        var chip = document.createElement('span');
-        chip.className = 'motion-chip';
-        chip.innerHTML =
-            '<span class="motion-chip-name">' + m.name + '</span>' +
-            '<span class="motion-chip-meta">×' + m.speed + ' ' + m.duration + 's</span>';
-        var del = document.createElement('button');
-        del.type = 'button';
-        del.className = 'motion-chip-del';
-        del.textContent = '×';
-        del.onclick = function() { _progSteps.splice(i, 1); renderProgSteps(); };
-        chip.appendChild(del);
-        el.appendChild(chip);
-    });
-}
-
-function runProgSequence() {
-    if (_progRunning) { _progStopReq = true; return; }
-    if (!_progSteps.length) return;
-    _progRunning = true;
-    _progStopReq = false;
-    var btn = document.getElementById('prog-run');
-    btn.textContent = '⏹ Arrêter';
-    btn.classList.add('prog-run-btn--running');
-
-    var steps   = _progSteps.slice();
-    var loops   = _progLoops;
-    var infinite = (loops === 0);
-    var iter = 0;
-
-    function step(idx) {
-        if (_progStopReq || (!infinite && iter >= loops)) {
-            _progRunning = false;
-            btn.textContent = '▶ Exécuter';
-            btn.classList.remove('prog-run-btn--running');
-            return;
-        }
-        if (idx >= steps.length) {
-            iter++;
-            step(0);
-            return;
-        }
-        var m = steps[idx];
-        $.ajax({ url: WOZ_BASE + '/woz', type: 'POST', contentType: 'application/json',
-                 data: JSON.stringify({ motion: m.name, speed: m.speed }) });
-        setTimeout(function() { step(idx + 1); }, m.duration * 1000);
-    }
-    step(0);
-}
-
-function initProg() {
-    buildMotionSelect('prog-motion-pick');
-    renderProgSteps();
-
-    document.getElementById('prog-add-step').addEventListener('click', function() {
-        var name = document.getElementById('prog-motion-pick').value;
-        if (!name) return;
-        var speed    = Math.min(1.0, Math.max(0.1, parseFloat(document.getElementById('prog-speed').value)    || 0.5));
-        var duration = Math.max(0.5,              parseFloat(document.getElementById('prog-duration').value) || 3.0);
-        _progSteps.push({ name: name, speed: speed, duration: duration });
-        renderProgSteps();
-    });
-
-    document.querySelectorAll('.prog-loop-btn').forEach(function(btn) {
-        btn.addEventListener('click', function() {
-            _progLoops = parseInt(btn.dataset.loops, 10);
-            document.querySelectorAll('.prog-loop-btn').forEach(function(b) {
-                b.classList.toggle('prog-loop-btn--active', b === btn);
-            });
-        });
-    });
-
-    document.getElementById('prog-run').addEventListener('click', runProgSequence);
-
-    document.getElementById('prog-save').addEventListener('click', function() {
-        var label = (document.getElementById('prog-save-label').value || '').trim();
-        if (!label)          { alert('Donnez un nom au bouton.'); return; }
-        if (!_progSteps.length) { alert('Ajoutez au moins un mouvement.'); return; }
-        var list = loadHomebrew();
-        list.push({ label: label, motions: _progSteps.slice() });
-        saveHomebrew(list);
-        renderHomebrew();
-        document.getElementById('prog-save-label').value = '';
-        alert('Bouton "' + label + '" sauvegardé dans Mes boutons.');
-    });
-}
 
 function onLoad() {
     renderQuick();
@@ -388,7 +287,6 @@ function onLoad() {
     buildLedSelect('new-led');
     renderMotionList();
     renderHomebrew();
-    initProg();
 
     document.getElementById('btn-add-motion').addEventListener('click', function() {
         var name  = document.getElementById('new-motion-pick').value;
