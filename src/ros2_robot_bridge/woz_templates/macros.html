@@ -29,6 +29,7 @@
             <a href="/r/{{ rid }}/macros">Macros</a></div>
             <div class="tab tab--off">
             <a href="/r/{{ rid }}/vocal">Vocal</a></div>
+            <div class="tab tab--off"><a href="/r/{{ rid }}/blocks">Programme</a></div>
         </div>
 
         <div id="body">
@@ -46,32 +47,79 @@
                     <button class="macro-btn macro-btn--stiffen" id="btn-stiffen">Stiffener</button>
                 </div>
 
-                <h2 class="macros-section-title">Mes boutons</h2>
-                <div id="homebrew-grid" class="macro-grid"></div>
+                <div class="level-2-up">
+                    <h2 class="macros-section-title">Mes boutons</h2>
+                    <div id="homebrew-grid" class="macro-grid"></div>
 
-                <form id="add-form" class="macro-add-form">
-                    <div class="macro-form-row">
-                        <input id="new-label" type="text" placeholder="Nom du bouton" required />
+                    <form id="add-form" class="macro-add-form">
+                        <div class="macro-form-row">
+                            <input id="new-label" type="text" placeholder="Nom du bouton" required />
+                        </div>
+                        <div class="macro-form-row macro-form-row--motions">
+                            <select id="new-motion-pick"></select>
+                            <input id="new-motion-speed" type="number" min="0.1" max="1.0" step="0.1" value="0.5" title="Vitesse (0.1–1.0)" />
+                            <input id="new-motion-duration" type="number" min="0.5" max="60" step="0.5" value="3" title="Durée avant prochain mouvement (s)" />
+                            <button type="button" id="btn-add-motion" class="motion-add-btn">+</button>
+                        </div>
+                        <div id="motion-list" class="motion-list"></div>
+                        <div class="macro-form-row">
+                            <select id="new-emotion"></select>
+                        </div>
+                        <div class="macro-form-row macro-form-row--led">
+                            <select id="new-led"></select>
+                            <input id="new-led-color" type="color" value="#ffffff" title="Couleur LED" />
+                        </div>
+                        <div class="macro-form-row">
+                            <input id="new-speak" type="text" placeholder="Texte à dire (optionnel)" />
+                        </div>
+                        <button type="submit" class="macro-add-btn">+ Ajouter</button>
+                    </form>
+                </div>
+
+                <div class="level-3-only">
+                    <h2 class="macros-section-title">Programmation avancée</h2>
+                    <div class="prog-builder">
+                        <div class="prog-step-row">
+                            <select id="prog-motion-pick"></select>
+                            <div class="prog-field-group">
+                                <label title="De 0.1 (très lent) à 1.0 (pleine vitesse)">Vitesse</label>
+                                <input id="prog-speed" type="number" min="0.1" max="1.0" step="0.1" value="0.5" />
+                            </div>
+                            <div class="prog-field-group">
+                                <label title="Secondes avant de lancer le mouvement suivant. Laissez assez de temps pour que le mouvement se termine.">Attente (s)</label>
+                                <input id="prog-duration" type="number" min="0.5" max="30" step="0.5" value="3" />
+                            </div>
+                            <button type="button" id="prog-add-step" class="motion-add-btn" title="Ajouter ce mouvement à la séquence">+</button>
+                        </div>
+                        <div id="prog-step-list" class="motion-list"></div>
+                        <div class="prog-loop-row">
+                            <label>Répétitions :</label>
+                            <div class="prog-loop-btns">
+                                <button type="button" class="prog-loop-btn prog-loop-btn--active" data-loops="1">1×</button>
+                                <button type="button" class="prog-loop-btn" data-loops="3">3×</button>
+                                <button type="button" class="prog-loop-btn" data-loops="5">5×</button>
+                                <button type="button" class="prog-loop-btn" data-loops="0">∞</button>
+                            </div>
+                        </div>
+                        <div class="prog-action-row">
+                            <button type="button" id="prog-run" class="prog-run-btn">▶ Exécuter</button>
+                            <input id="prog-save-label" type="text" placeholder="Nom pour sauvegarder…" />
+                            <button type="button" id="prog-save" class="prog-save-btn">💾 Sauvegarder</button>
+                        </div>
+                        <div class="prog-hints">
+                            <details>
+                                <summary>Comment ça marche</summary>
+                                <ul>
+                                    <li><strong>Vitesse</strong> : de 0.1 (très lent) à 1.0 (pleine vitesse). Recommandé : 0.5.</li>
+                                    <li><strong>Attente</strong> : secondes avant le mouvement suivant. Exemples : arc ≈ 3s, rire ≈ 6s, danse ≈ 8s.</li>
+                                    <li><strong>Répétitions</strong> : 1× joue une fois. ∞ boucle indéfiniment jusqu'à ⛔ STOP.</li>
+                                    <li><strong>Exécuter</strong> : lance la séquence immédiatement. Appuyez à nouveau pour arrêter.</li>
+                                    <li><strong>Sauvegarder</strong> : donne un nom et crée un bouton permanent dans "Mes boutons".</li>
+                                </ul>
+                            </details>
+                        </div>
                     </div>
-                    <div class="macro-form-row macro-form-row--motions">
-                        <select id="new-motion-pick"></select>
-                        <input id="new-motion-speed" type="number" min="0.1" max="1.0" step="0.1" value="0.5" title="Vitesse (0.1–1.0)" />
-                        <input id="new-motion-duration" type="number" min="0.5" max="60" step="0.5" value="3" title="Durée avant prochain mouvement (s)" />
-                        <button type="button" id="btn-add-motion" class="motion-add-btn">+</button>
-                    </div>
-                    <div id="motion-list" class="motion-list"></div>
-                    <div class="macro-form-row">
-                        <select id="new-emotion"></select>
-                    </div>
-                    <div class="macro-form-row macro-form-row--led">
-                        <select id="new-led"></select>
-                        <input id="new-led-color" type="color" value="#ffffff" title="Couleur LED" />
-                    </div>
-                    <div class="macro-form-row">
-                        <input id="new-speak" type="text" placeholder="Texte à dire (optionnel)" />
-                    </div>
-                    <button type="submit" class="macro-add-btn">+ Ajouter</button>
-                </form>
+                </div>
 
             </div>
         </div>
