@@ -177,6 +177,9 @@ class _RobotSlot:
         self.connecting   = True
         self.error        = ''
 
+        self._prog_stop   = threading.Event()
+        self._prog_stop.set()  # not running initially
+
     def start_connect(self):
         threading.Thread(target=self._connect, daemon=True).start()
 
@@ -476,6 +479,56 @@ class _RobotSlot:
                              f'RElbowRoll:{math.radians(e):.4f}'),
             )
 
+    # ── Block program execution ───────────────────────────────────────────────
+
+    def run_program(self, program: list):
+        self._prog_stop.set()
+        self._prog_stop = threading.Event()
+        stop = self._prog_stop
+        threading.Thread(target=self._exec_blocks, args=(program, stop), daemon=True).start()
+
+    def stop_program(self):
+        self._prog_stop.set()
+
+    @property
+    def program_running(self) -> bool:
+        return not self._prog_stop.is_set()
+
+    def _exec_blocks(self, blocks: list, stop: threading.Event):
+        import random as _rnd
+        for block in blocks:
+            if stop.is_set():
+                return
+            t = block.get('type', '')
+            p = block.get('params', {})
+            try:
+                if t == 'move':
+                    self._do_move(p.get('motion', ''), float(p.get('speed', 0.5)))
+                elif t == 'speak':
+                    self._do_speak(p.get('text', ''), self.language)
+                elif t == 'led':
+                    self._do_display('', p.get('led_name', 'eyes'), p.get('color', '#ffffff'))
+                elif t == 'emotion':
+                    self._do_display(p.get('emotion', 'happy'), '', '')
+                elif t == 'wait':
+                    stop.wait(timeout=max(0.0, float(p.get('seconds', 1.0))))
+                elif t == 'repeat':
+                    body = block.get('body', [])
+                    count = max(1, int(p.get('count', 3)))
+                    for _ in range(count):
+                        if stop.is_set():
+                            return
+                        self._exec_blocks(body, stop)
+                elif t == 'if_else':
+                    cond = p.get('condition', 'always')
+                    result = (cond == 'always') or (cond == 'random' and _rnd.random() < 0.5)
+                    branch = block.get('body' if result else 'else_body', [])
+                    self._exec_blocks(branch, stop)
+            except Exception as exc:
+                self._log.warning(f'[WOZ] Slot {self.rid} program block error ({t}): {exc}')
+        # Mark done so program_running reports False
+        stop.set()
+
     def as_dict(self) -> dict:
         return {
             'rid':          self.rid,
@@ -698,6 +751,36 @@ def _register_routes(app: 'Flask', node: WozNode):
     @app.route('/r/<int:rid>/vocal')
     def robot_vocal(rid):
         return _render_tab('vocal.html', rid)
+
+    @app.route('/r/<int:rid>/blocks')
+    def robot_blocks(rid):
+        return _render_tab('blocks.html', rid)
+
+    @app.route('/r/<int:rid>/run_program', methods=['POST'])
+    def robot_run_program(rid):
+        if not _slot_ok(rid):
+            return jsonify({'error': 'not logged in'}), 403
+        slot = node.get_robot(rid)
+        if slot is None:
+            return jsonify({'error': 'robot not connected'}), 404
+        payload = request.get_json(silent=True) or {}
+        slot.run_program(payload.get('program', []))
+        return jsonify({'ok': True})
+
+    @app.route('/r/<int:rid>/stop_program', methods=['POST'])
+    def robot_stop_program(rid):
+        slot = node.get_robot(rid)
+        if slot is None:
+            return jsonify({'error': 'robot not connected'}), 404
+        slot.stop_program()
+        return jsonify({'ok': True})
+
+    @app.route('/r/<int:rid>/program_status')
+    def robot_program_status(rid):
+        slot = node.get_robot(rid)
+        if slot is None:
+            return jsonify({'running': False})
+        return jsonify({'running': slot.program_running})
 
     # ── Per-robot command endpoint ────────────────────────────────────────────
 
