@@ -668,33 +668,34 @@ bottom_right{
 .joy3Div{
 	width:200px;
 	height:200px;
-	margin:50px;
-	position:relative;
-	bottom:200px;
+	position:fixed;
+	bottom:0px;
 	left:0px;
+	margin:0;
+	z-index:100;
 }
 
 /* Styles pour les tablettes en mode horizontal */
 @media only screen and (max-width: 1024px) and (orientation: landscape) {
     .joy3Div {
-		position: relative;
+		position: fixed;
         width: 150px;
         height: 150px;
-        margin: 30px;
-        bottom: 0px;
-        left: 0px;
+		bottom: 0px;
+		left: 0px;
+		margin: 0;
     }
 }
 
 /* Styles pour les tablettes en mode vertical */
 @media only screen and (max-width: 768px) and (orientation: portrait) {
     .joy3Div {
-		position: relative;
+		position: fixed;
         width: 100px;
         height: 100px;
-        margin: 20px;
-        bottom: 0px;
-        left: 0px;
+		bottom: 0px;
+		left: 0px;
+		margin: 0;
     }
 }
 

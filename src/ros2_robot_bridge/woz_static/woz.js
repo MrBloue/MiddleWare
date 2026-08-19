@@ -51,7 +51,8 @@ var JoyStick = (function(container, parameters, callback)
     var externalRadius = internalRadius + 30;
     var centerX = canvas.width / 2;
     var centerY = canvas.height / 2;
-    var directionHorizontalLimitPos = canvas.width / 10;
+    // Wider horizontal dead zone: easier to go straight forward without rotating
+    var directionHorizontalLimitPos = canvas.width / 4;
     var directionHorizontalLimitNeg = directionHorizontalLimitPos * -1;
     var directionVerticalLimitPos = canvas.height / 10;
     var directionVerticalLimitNeg = directionVerticalLimitPos * -1;
@@ -434,7 +435,8 @@ var JoyStick2 = (function(container, parameters, callback)
     var externalRadius = internalRadius + 30;
     var centerX = canvas.width / 2;
     var centerY = canvas.height / 2;
-    var directionHorizontalLimitPos = canvas.width / 10;
+    // Wider horizontal dead zone: easier to go straight forward without rotating
+    var directionHorizontalLimitPos = canvas.width / 4;
     var directionHorizontalLimitNeg = directionHorizontalLimitPos * -1;
     var directionVerticalLimitPos = canvas.height / 10;
     var directionVerticalLimitNeg = directionVerticalLimitPos * -1;
@@ -742,14 +744,20 @@ var JoyStick2 = (function(container, parameters, callback)
    
 
 let prevWalk = "";
+let prevWalkSpeed = 0;
 
 this.GetDir = function() {
     const walking = getCardinalDirection();
-    if (walking !== prevWalk/* && walking !== 'stop'*/) {
-        const url_path = WOZ_BASE + "/woz";
-        var xhttp = new XMLHttpRequest();
+    // Y-axis magnitude scaled 0.0→1.0; push further = faster
+    const rawMag = Math.min(1.0, Math.abs((movedY - centerY) / maxMoveStick));
+    const walkSpeed = parseFloat(rawMag.toFixed(2));
 
-        var joysticWalkPayload = { "walk": walking };
+    const dirChanged = walking !== prevWalk;
+    const speedChanged = Math.abs(walkSpeed - prevWalkSpeed) >= 0.12;
+
+    if (dirChanged || speedChanged) {
+        const url_path = WOZ_BASE + "/woz";
+        var joysticWalkPayload = { "walk": walking, "walk_speed": walkSpeed };
         $.ajax({
             type: "POST",
             contentType: "application/json; charset=utf-8",
@@ -757,12 +765,10 @@ this.GetDir = function() {
             dataType: "json",
             processData: false,
             data: JSON.stringify(joysticWalkPayload),
-
-        }).done(function(data) {
-            console.log(data);
-        });
+        }).done(function(data) {});
     }
     prevWalk = walking;
+    prevWalkSpeed = walkSpeed;
     return walking;
 };
 });
