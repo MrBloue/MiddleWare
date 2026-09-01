@@ -77,12 +77,12 @@ _SLOT_POSTURES = {
 }
 
 _SLOT_WALK = {
-    'walk_forward':  (0.35,  0.0,  0.0),
-    'walk_backward': (-0.35, 0.0,  0.0),
-    'walk_left':     (0.0,   0.2,  0.0),
-    'walk_right':    (0.0,  -0.2,  0.0),
-    'turn_left':     (0.0,   0.0,  0.5),
-    'turn_right':    (0.0,   0.0, -0.5),
+    'walk_forward':  (1.0,   0.0,  0.0),
+    'walk_backward': (-1.0,  0.0,  0.0),
+    'walk_left':     (0.0,   0.5,  0.0),
+    'walk_right':    (0.0,  -0.5,  0.0),
+    'turn_left':     (0.0,   0.0,  1.0),
+    'turn_right':    (0.0,   0.0, -1.0),
     'stop':          (0.0,   0.0,  0.0),
 }
 
@@ -877,7 +877,8 @@ def _register_routes(app: 'Flask', node: WozNode):
             return jsonify({})
 
         if button in _WALK_MAP:
-            slot.exec_cmd(action='move', motion_name=_WALK_MAP[button])
+            walk_spd = max(0.0, min(1.0, float(payload.get('walk_speed', 1.0))))
+            slot.exec_cmd(action='move', motion_name=_WALK_MAP[button], speed=walk_spd)
             return jsonify({})
 
         if button in _HEAD_MAP:
