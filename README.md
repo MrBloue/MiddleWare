@@ -176,10 +176,44 @@ All fields are optional. Defaults are **Enfant** (child) and **Accompagnant** (t
 | **Scénario et Jeux** | Scenario launch and explanation buttons grouped by game type |
 | **Réactions** | Quick-reaction buttons (emotions, feedback, questions) for live improvisation |
 | **Maison** | Alternate activity set (symbolic play, mime, manual activities, daily life) |
-| **Macros** | Custom macro buttons, quick motion presets, relax/stiffen controls, a walk joystick, and a head-look joystick |
+| **Macros** | Quick motion presets, relax/stiffen controls, custom macro buttons (level 2+), and a drag-and-drop block programming editor (level 3) |
 | **Vocal** | Browser microphone → server-side Whisper transcription → robot repeats or executes a voice command |
 
 All tabs include a walk joystick (bottom-right) and a head-look joystick (bottom-left). An **⛔ STOP** button is always visible — pressing it stops all motor movement and interrupts any ongoing speech.
+
+Two persistent widgets appear on the left edge of every page:
+- **🔊 Volume** — adjusts robot audio output in ±10 % steps (0–100 %), persisted in localStorage.
+- **🏃 Speed** — sets the walk joystick speed multiplier in 5 steps (levels 1–5 → 20 %–100 % of max velocity), persisted in localStorage. Affects the walk joystick only; macro and block-program speeds are unaffected.
+
+### Complexity levels
+
+A badge in the breadcrumb lets the operator choose a complexity level (Simple / Standard / Avancé). Higher levels reveal additional controls:
+
+| Level | Label | Controls shown |
+|-------|-------|---------------|
+| 1 | Simple | Quick moves, Relax/Stiffen |
+| 2 | Standard | + Custom macro buttons and form |
+| 3 | Avancé | + Block programming editor |
+
+The chosen level is persisted in localStorage.
+
+### Block programming (Macros tab, level 3)
+
+A drag-and-drop visual block editor lets an operator build and run multi-step robot programs without writing code.
+
+**Block types:**
+
+| Block | Description |
+|-------|-------------|
+| **Mouvement** | Run a named motion (same vocabulary as the quick moves) at a configurable speed |
+| **Parler** | Robot says a text string |
+| **LEDs** | Set an LED group to a chosen color |
+| **Émotion** | Display a named emotion on the LEDs |
+| **Attendre** | Pause execution for N seconds (interruptible by Stop) |
+| **Répéter** | Repeat a nested sequence N times |
+| **Si/Sinon** | Branch: always, or random 50/50 |
+
+Blocks are dragged from the palette into the program area. Container blocks (Répéter, Si/Sinon) accept nested blocks in their body. Programs are saved by name in localStorage and re-loaded on next visit. **▶ Exécuter** runs the program on the server; **⏹ Stop** interrupts it at the next block boundary.
 
 All category labels in the UI use the generic term **"Le robot"** and are not tied to any specific robot model.
 
@@ -354,15 +388,17 @@ ros2 topic pub --once /robot_cmd ros2_robot_bridge/msg/RobotCmd \
 
 | `motion_name` | Description |
 |---------------|-------------|
-| `walk_forward` | Forward — max 0.35 m/s at speed=1.0 |
-| `walk_backward` | Backward — max 0.35 m/s |
-| `walk_left` | Sidestep left — max 0.2 m/s |
-| `walk_right` | Sidestep right — max 0.2 m/s |
-| `turn_left` | Rotate left — max 0.5 rad/s |
-| `turn_right` | Rotate right — max 0.5 rad/s |
+| `walk_forward` | Forward — max 1.0 m/s at speed=1.0 |
+| `walk_backward` | Backward — max 1.0 m/s |
+| `walk_left` | Sidestep left — max 0.5 m/s |
+| `walk_right` | Sidestep right — max 0.5 m/s |
+| `turn_left` | Rotate left — max 1.0 rad/s |
+| `turn_right` | Rotate right — max 1.0 rad/s |
 | `stop` | Stop walking |
 
-The `speed` field scales all velocities linearly (e.g. `speed: 0.5` → 0.175 m/s forward).
+The `speed` field scales all velocities linearly (e.g. `speed: 0.5` → 0.5 m/s forward).
+
+**WOZ joystick:** the walk joystick sends a `walk_speed` value proportional to how far the stick is pushed (0.0–1.0), further multiplied by the 🏃 speed widget level. This gives smooth analog speed control — push gently for slow walking, push to the edge for maximum speed. The horizontal dead zone is widened so pushing forward does not accidentally trigger rotation.
 
 ### Postures (NAO / Pepper)
 
@@ -1046,7 +1082,9 @@ ros2 topic pub --once /robot_cmd ros2_robot_bridge/msg/RobotCmd \
 **NAO / Pepper:** calls `ALAudioDevice.setOutputVolume(0–100)` via qi.  
 **QTrobot:** not implemented — command is silently skipped and logged.
 
-The **Macros** tab in the WOZ interface exposes two circular buttons (**+** / **−**) above the left joystick. Each press adjusts the volume by ±10 percentage points (clamped to 0–100). The current level is tracked client-side starting at 50 % and is not displayed.
+The WOZ interface shows two persistent widgets on the left edge of every page, above the head-look joystick:
+- **🔊 Volume** — two circular **+** / **−** buttons adjust output volume by ±10 pp (0–100 %, default 50 %). The current level is displayed between the buttons and persisted in localStorage.
+- **🏃 Speed** — two circular **+** / **−** buttons cycle through 5 walk speed levels (1–5, default 3 = 60 % of max). The current level is displayed between the buttons and persisted in localStorage.
 
 ---
 
