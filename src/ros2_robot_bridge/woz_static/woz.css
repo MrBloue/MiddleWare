@@ -606,6 +606,18 @@ bottom_right{
 	background-color: #003a99;
 }
 
+.speed-container {
+	position: fixed;
+	bottom: 430px;
+	left: 20px;
+	display: flex;
+	flex-direction: column;
+	align-items: center;
+	gap: 6px;
+	width: 60px;
+	z-index: 100;
+}
+
 .volume-container {
 	position: fixed;
 	bottom: 260px;
@@ -668,33 +680,34 @@ bottom_right{
 .joy3Div{
 	width:200px;
 	height:200px;
-	margin:50px;
-	position:relative;
-	bottom:200px;
+	position:fixed;
+	bottom:0px;
 	left:0px;
+	margin:0;
+	z-index:100;
 }
 
 /* Styles pour les tablettes en mode horizontal */
 @media only screen and (max-width: 1024px) and (orientation: landscape) {
     .joy3Div {
-		position: relative;
+		position: fixed;
         width: 150px;
         height: 150px;
-        margin: 30px;
-        bottom: 0px;
-        left: 0px;
+		bottom: 0px;
+		left: 0px;
+		margin: 0;
     }
 }
 
 /* Styles pour les tablettes en mode vertical */
 @media only screen and (max-width: 768px) and (orientation: portrait) {
     .joy3Div {
-		position: relative;
+		position: fixed;
         width: 100px;
         height: 100px;
-        margin: 20px;
-        bottom: 0px;
-        left: 0px;
+		bottom: 0px;
+		left: 0px;
+		margin: 0;
     }
 }
 
@@ -875,4 +888,159 @@ bottom_right{
     color: #3a7bd5;
     width: 34px;
     text-align: right;
+}
+
+/* ── Complexity level badge ────────────────────────────────────────────── */
+.level-badge {
+    float: right;
+    margin-right: 8px;
+    padding: 2px 10px;
+    border-radius: 10px;
+    background: rgba(255,255,255,0.22);
+    border: 1px solid rgba(255,255,255,0.5);
+    color: #fff;
+    font-size: 12px;
+    font-weight: bold;
+    cursor: pointer;
+    user-select: none;
+    vertical-align: middle;
+}
+.level-badge:hover { background: rgba(255,255,255,0.38); }
+body.woz-level-2 .level-badge { background: rgba(60,190,90,0.45); }
+body.woz-level-3 .level-badge { background: rgba(220,140,0,0.5); }
+
+/* Sections hidden at level 1 */
+.level-2-up { display: none !important; }
+body.woz-level-2 .level-2-up,
+body.woz-level-3 .level-2-up { display: block !important; }
+
+/* Sections only at level 3 */
+.level-3-only { display: none !important; }
+body.woz-level-3 .level-3-only { display: block !important; }
+
+/* ── Level 3: programming section ─────────────────────────────────────── */
+.prog-builder {
+    background: #eaf0ff;
+    border-radius: 8px;
+    padding: 12px;
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+}
+.prog-step-row {
+    display: flex;
+    gap: 6px;
+    align-items: flex-end;
+    flex-wrap: wrap;
+}
+.prog-step-row select {
+    flex: 1;
+    min-width: 120px;
+    padding: 8px;
+    border: 1px solid #aac4fd;
+    border-radius: 6px;
+    font-size: 14px;
+}
+.prog-field-group {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 2px;
+}
+.prog-field-group label {
+    font-size: 10px;
+    color: #666;
+    cursor: help;
+    white-space: nowrap;
+}
+.prog-field-group input[type=number] {
+    width: 58px;
+    padding: 8px 4px;
+    border: 1px solid #aac4fd;
+    border-radius: 6px;
+    font-size: 13px;
+    text-align: center;
+}
+.prog-loop-row {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    flex-wrap: wrap;
+}
+.prog-loop-row > label {
+    font-size: 13px;
+    font-weight: bold;
+    color: #555;
+}
+.prog-loop-btns { display: flex; gap: 6px; }
+.prog-loop-btn {
+    padding: 6px 14px;
+    border: 2px solid #83A2FE;
+    border-radius: 16px;
+    background: #fff;
+    color: #0050cc;
+    font-size: 14px;
+    font-weight: bold;
+    cursor: pointer;
+}
+.prog-loop-btn--active { background: #83A2FE; color: #fff; }
+.prog-action-row {
+    display: flex;
+    gap: 8px;
+    align-items: center;
+    flex-wrap: wrap;
+}
+.prog-run-btn {
+    padding: 10px 20px;
+    font-size: 15px;
+    font-weight: bold;
+    border: none;
+    border-radius: 8px;
+    background-color: #2eaa5e;
+    color: #fff;
+    cursor: pointer;
+    flex-shrink: 0;
+}
+.prog-run-btn:active { background-color: #1d7f44; }
+.prog-run-btn--running { background-color: #cc3300; }
+.prog-run-btn--running:active { background-color: #991f00; }
+.prog-action-row input[type=text] {
+    flex: 1;
+    min-width: 120px;
+    padding: 8px 10px;
+    border: 1px solid #aac4fd;
+    border-radius: 6px;
+    font-size: 14px;
+}
+.prog-save-btn {
+    padding: 10px 14px;
+    font-size: 14px;
+    font-weight: bold;
+    border: none;
+    border-radius: 8px;
+    background-color: #0050cc;
+    color: #fff;
+    cursor: pointer;
+    flex-shrink: 0;
+    white-space: nowrap;
+}
+.prog-save-btn:active { background-color: #003a99; }
+.prog-hints {
+    font-size: 12px;
+    color: #555;
+    border-top: 1px solid #c3d4ff;
+    padding-top: 8px;
+}
+.prog-hints summary {
+    cursor: pointer;
+    color: #0050cc;
+    font-weight: bold;
+    font-size: 13px;
+    list-style: none;
+}
+.prog-hints summary::before { content: 'ⓘ '; }
+.prog-hints ul {
+    margin: 6px 0 0 16px;
+    padding: 0;
+    line-height: 1.9;
 }

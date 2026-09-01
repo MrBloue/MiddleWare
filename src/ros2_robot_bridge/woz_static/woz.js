@@ -51,7 +51,8 @@ var JoyStick = (function(container, parameters, callback)
     var externalRadius = internalRadius + 30;
     var centerX = canvas.width / 2;
     var centerY = canvas.height / 2;
-    var directionHorizontalLimitPos = canvas.width / 10;
+    // Wider horizontal dead zone: easier to go straight forward without rotating
+    var directionHorizontalLimitPos = canvas.width / 4;
     var directionHorizontalLimitNeg = directionHorizontalLimitPos * -1;
     var directionVerticalLimitPos = canvas.height / 10;
     var directionVerticalLimitNeg = directionVerticalLimitPos * -1;
@@ -434,7 +435,8 @@ var JoyStick2 = (function(container, parameters, callback)
     var externalRadius = internalRadius + 30;
     var centerX = canvas.width / 2;
     var centerY = canvas.height / 2;
-    var directionHorizontalLimitPos = canvas.width / 10;
+    // Wider horizontal dead zone: easier to go straight forward without rotating
+    var directionHorizontalLimitPos = canvas.width / 4;
     var directionHorizontalLimitNeg = directionHorizontalLimitPos * -1;
     var directionVerticalLimitPos = canvas.height / 10;
     var directionVerticalLimitNeg = directionVerticalLimitPos * -1;
@@ -742,14 +744,21 @@ var JoyStick2 = (function(container, parameters, callback)
    
 
 let prevWalk = "";
+let prevWalkSpeed = 0;
 
 this.GetDir = function() {
     const walking = getCardinalDirection();
-    if (walking !== prevWalk/* && walking !== 'stop'*/) {
-        const url_path = WOZ_BASE + "/woz";
-        var xhttp = new XMLHttpRequest();
+    // Y-axis magnitude × global speed multiplier (set by speed widget)
+    const rawMag = Math.min(1.0, Math.abs((movedY - centerY) / maxMoveStick));
+    const mult = (typeof window.wozSpeedMult === 'number') ? window.wozSpeedMult : 0.6;
+    const walkSpeed = parseFloat((rawMag * mult).toFixed(2));
 
-        var joysticWalkPayload = { "walk": walking };
+    const dirChanged = walking !== prevWalk;
+    const speedChanged = Math.abs(walkSpeed - prevWalkSpeed) >= 0.12;
+
+    if (dirChanged || speedChanged) {
+        const url_path = WOZ_BASE + "/woz";
+        var joysticWalkPayload = { "walk": walking, "walk_speed": walkSpeed };
         $.ajax({
             type: "POST",
             contentType: "application/json; charset=utf-8",
@@ -757,12 +766,10 @@ this.GetDir = function() {
             dataType: "json",
             processData: false,
             data: JSON.stringify(joysticWalkPayload),
-
-        }).done(function(data) {
-            console.log(data);
-        });
+        }).done(function(data) {});
     }
     prevWalk = walking;
+    prevWalkSpeed = walkSpeed;
     return walking;
 };
 });
@@ -1026,7 +1033,40 @@ function setCommandListOpacity( opacity) {
 
 // ── Shared controls injected on every page ────────────────────────────────────
 
+// Global walk speed multiplier (0.2–1.0), set by speed widget below
+window.wozSpeedMult = parseFloat(localStorage.getItem('woz_walk_speed') || '0.6');
+
 function initSharedControls() {
+    // Speed widget (walk joystick multiplier)
+    var spd = document.createElement('div');
+    spd.id = 'speed-container';
+    spd.className = 'speed-container';
+    spd.innerHTML =
+        '<button class="volume-btn" id="speed-up">+</button>' +
+        '<span class="volume-icon">🏃</span>' +
+        '<span class="volume-level" id="speed-level">3</span>' +
+        '<button class="volume-btn" id="speed-down">-</button>';
+    document.body.appendChild(spd);
+
+    // 5 levels: 0.2, 0.4, 0.6, 0.8, 1.0
+    var speedSteps = [0.2, 0.4, 0.6, 0.8, 1.0];
+    var spdLevel = speedSteps.indexOf(window.wozSpeedMult);
+    if (spdLevel === -1) spdLevel = 2; // default level 3
+    document.getElementById('speed-level').textContent = spdLevel + 1;
+    function applySpeed() {
+        window.wozSpeedMult = speedSteps[spdLevel];
+        localStorage.setItem('woz_walk_speed', String(window.wozSpeedMult));
+        document.getElementById('speed-level').textContent = spdLevel + 1;
+    }
+    document.getElementById('speed-up').addEventListener('click', function() {
+        spdLevel = Math.min(4, spdLevel + 1);
+        applySpeed();
+    });
+    document.getElementById('speed-down').addEventListener('click', function() {
+        spdLevel = Math.max(0, spdLevel - 1);
+        applySpeed();
+    });
+
     // Volume buttons
     var vol = document.createElement('div');
     vol.id = 'volume-container';
@@ -1065,6 +1105,28 @@ function initSharedControls() {
                  data: JSON.stringify({ relax: true }) });
     });
     document.body.appendChild(stop);
+
+    // Complexity level badge — injected into breadcrumb, persists via localStorage
+    var breadcrumb = document.getElementById('breadcrumb');
+    if (breadcrumb) {
+        var LEVEL_LABELS = ['', 'Simple', 'Standard', 'Avancé'];
+        var levelBadge = document.createElement('span');
+        levelBadge.id = 'level-badge';
+        levelBadge.className = 'level-badge';
+        function applyLevel(lvl) {
+            lvl = Math.max(1, Math.min(3, lvl));
+            localStorage.setItem('woz_level', String(lvl));
+            document.body.classList.remove('woz-level-1', 'woz-level-2', 'woz-level-3');
+            document.body.classList.add('woz-level-' + lvl);
+            levelBadge.textContent = 'N' + lvl + ' — ' + LEVEL_LABELS[lvl];
+        }
+        levelBadge.addEventListener('click', function() {
+            var cur = parseInt(localStorage.getItem('woz_level') || '2', 10);
+            applyLevel(cur >= 3 ? 1 : cur + 1);
+        });
+        breadcrumb.insertBefore(levelBadge, breadcrumb.firstChild);
+        applyLevel(parseInt(localStorage.getItem('woz_level') || '2', 10));
+    }
 }
 
 document.addEventListener('DOMContentLoaded', initSharedControls);

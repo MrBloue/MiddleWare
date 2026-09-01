@@ -37,6 +37,7 @@ from ros2_robot_bridge.nao_behavior_tables import (  # noqa: E402
     QT_TO_NAO_BEHAVIOR as _QT_TO_NAO_BEHAVIOR,
     QT_TO_NAO_MOTION as _QT_TO_NAO_MOTION,
     GESTURES as _NAO_GESTURES,
+    BEHAVIOR_FALLBACKS as _BEHAVIOR_FALLBACKS,
 )
 
 # ── Whisper (lazy) ────────────────────────────────────────────────────────────
@@ -76,12 +77,12 @@ _SLOT_POSTURES = {
 }
 
 _SLOT_WALK = {
-    'walk_forward':  (0.35,  0.0,  0.0),
-    'walk_backward': (-0.35, 0.0,  0.0),
-    'walk_left':     (0.0,   0.2,  0.0),
-    'walk_right':    (0.0,  -0.2,  0.0),
-    'turn_left':     (0.0,   0.0,  0.5),
-    'turn_right':    (0.0,   0.0, -0.5),
+    'walk_forward':  (1.0,   0.0,  0.0),
+    'walk_backward': (-1.0,  0.0,  0.0),
+    'walk_left':     (0.0,   0.5,  0.0),
+    'walk_right':    (0.0,  -0.5,  0.0),
+    'turn_left':     (0.0,   0.0,  1.0),
+    'turn_right':    (0.0,   0.0, -1.0),
     'stop':          (0.0,   0.0,  0.0),
 }
 
@@ -177,6 +178,9 @@ class _RobotSlot:
         self.connecting   = True
         self.error        = ''
 
+        self._prog_stop   = threading.Event()
+        self._prog_stop.set()  # not running initially
+
     def start_connect(self):
         threading.Thread(target=self._connect, daemon=True).start()
 
@@ -194,16 +198,70 @@ class _RobotSlot:
             self._audio    = s.service('ALAudioDevice')
             try:
                 life = s.service('ALAutonomousLife')
-                life.setState('disabled')
+                life_disabled = life.getState() == 'disabled'
+            except Exception:
+                life = None
+                life_disabled = False
+            if not life_disabled and life is not None:
+                try:
+                    # stopFocus() first so Pepper's current activity releases
+                    # its lock before we transition to disabled state.
+                    try:
+                        life.stopFocus()
+                        self._log.info(f'[WOZ] Slot {self.rid} autonomous life stopFocus done')
+                    except Exception as exc:
+                        self._log.info(f'[WOZ] Slot {self.rid} stopFocus: {exc}')
+                    life.setState('disabled')
+                    self._log.info(f'[WOZ] Slot {self.rid} autonomous life setState disabled done, state={life.getState()!r}')
+                except Exception as exc:
+                    self._log.warning(f'[WOZ] Slot {self.rid} failed to disable autonomous life: {exc}')
+            elif life is not None:
+                self._log.info(f'[WOZ] Slot {self.rid} autonomous life already disabled')
+            # Stop any stuck behaviors from previous sessions before stiffening.
+            try:
+                running = self._behavior.getRunningBehaviors()
+                if running:
+                    self._log.info(f'[WOZ] Slot {self.rid} stopping running behaviors: {running}')
+                    self._behavior.stopAllBehaviors()
+            except Exception as exc:
+                self._log.info(f'[WOZ] Slot {self.rid} stopAllBehaviors: {exc}')
+            # Always stiffen after setup.
+            try:
+                self._motion.wakeUp()
+                self._log.info(f'[WOZ] Slot {self.rid} wakeUp done, isWakeUp={self._motion.robotIsWakeUp()}')
+            except Exception as exc:
+                self._log.warning(f'[WOZ] Slot {self.rid} wakeUp failed: {exc}')
+                try:
+                    self._motion.setStiffnesses('Body', 1.0)
+                except Exception:
+                    pass
+            # Disable background autonomous movements (Pepper: breathing/shifting;
+            # silently no-ops on NAO which lacks this service).
+            try:
+                s.service('ALBackgroundMovement').setEnabled(False)
             except Exception:
                 pass
             try:
-                self._motion.setStiffnesses('Body', 1.0)
+                s.service('ALListeningMovement').setEnabled(False)
+            except Exception:
+                pass
+            try:
+                from ros2_robot_bridge.robot_discovery import _naoqi_version_label
+                system = s.service('ALSystem')
+                robot_name = system.robotName().lower()
+                if 'pepper' in robot_name:
+                    self.robot_type = 'pepper'
+                elif 'nao' in robot_name:
+                    self.robot_type = 'nao'
+                naoqi_ver = system.systemVersion()
+                label = _naoqi_version_label(self.robot_type, naoqi_ver)
+                if label:
+                    self.robot_version = label
             except Exception:
                 pass
             self.connected  = True
             self.connecting = False
-            self._log.info(f'[WOZ] Slot {self.rid} connected: {self.host}')
+            self._log.info(f'[WOZ] Slot {self.rid} connected: {self.host} ({self.robot_type} {self.robot_version})')
         except Exception as exc:
             self.connecting = False
             self.error      = str(exc)
@@ -289,8 +347,7 @@ class _RobotSlot:
                 self._motion.stopMove()
             else:
                 try:
-                    life = self._qi.service('ALAutonomousLife')
-                    life.setState('disabled')
+                    self._motion.setStiffnesses('Body', 1.0)
                 except Exception:
                     pass
                 self._motion.moveToward(x * speed, y * speed, theta * speed)
@@ -308,7 +365,10 @@ class _RobotSlot:
         if self._behavior:
             try:
                 if mn_lower in _NAO_BEHAVIORS:
-                    self._behavior.runBehavior(_NAO_BEHAVIORS[mn_lower])
+                    path = _NAO_BEHAVIORS[mn_lower]
+                    self._log.info(f'[WOZ] Slot {self.rid} runBehavior → {path!r}')
+                    self._behavior.runBehavior(path)
+                    self._log.info(f'[WOZ] Slot {self.rid} runBehavior done: {path!r}')
                     return
                 if mn_lower in _QT_TO_NAO_BEHAVIOR:
                     nao_name = _QT_TO_NAO_BEHAVIOR[mn_lower]
@@ -322,6 +382,16 @@ class _RobotSlot:
                         return
             except Exception as exc:
                 self._log.warning(f'[WOZ] Slot {self.rid} runBehavior error ({motion_name}): {exc}')
+                # Try a known-good fallback for robots with a reduced animation set
+                failed_path = _NAO_BEHAVIORS.get(mn_lower) or \
+                    (_NAO_BEHAVIORS.get(_QT_TO_NAO_BEHAVIOR.get(mn_lower, '') or '') ) or \
+                    (_NAO_BEHAVIORS.get(_QT_TO_NAO_MOTION.get(mn_lower, '') or '') )
+                if failed_path and failed_path in _BEHAVIOR_FALLBACKS:
+                    try:
+                        self._behavior.runBehavior(_BEHAVIOR_FALLBACKS[failed_path])
+                        return
+                    except Exception:
+                        pass
             # Last resort: try running as a raw behavior path
             try:
                 if self._behavior.isBehaviorInstalled(motion_name):
@@ -449,6 +519,59 @@ class _RobotSlot:
                              f'RElbowRoll:{math.radians(e):.4f}'),
             )
 
+    # ── Block program execution ───────────────────────────────────────────────
+
+    def run_program(self, program: list):
+        self._prog_stop.set()
+        self._prog_stop = threading.Event()
+        stop = self._prog_stop
+        def _run():
+            try:
+                self._exec_blocks(program, stop)
+            finally:
+                stop.set()  # signal done only from top level
+        threading.Thread(target=_run, daemon=True).start()
+
+    def stop_program(self):
+        self._prog_stop.set()
+
+    @property
+    def program_running(self) -> bool:
+        return not self._prog_stop.is_set()
+
+    def _exec_blocks(self, blocks: list, stop: threading.Event):
+        import random as _rnd
+        for block in blocks:
+            if stop.is_set():
+                return
+            t = block.get('type', '')
+            p = block.get('params', {})
+            try:
+                if t == 'move':
+                    self._do_move(p.get('motion', ''), float(p.get('speed', 0.5)))
+                elif t == 'speak':
+                    self._do_speak(p.get('text', ''), self.language)
+                elif t == 'led':
+                    self._do_display('', p.get('led_name', 'eyes'), p.get('color', '#ffffff'))
+                elif t == 'emotion':
+                    self._do_display(p.get('emotion', 'happy'), '', '')
+                elif t == 'wait':
+                    stop.wait(timeout=max(0.0, float(p.get('seconds', 1.0))))
+                elif t == 'repeat':
+                    body = block.get('body', [])
+                    count = max(1, int(p.get('count', 3)))
+                    for _ in range(count):
+                        if stop.is_set():
+                            return
+                        self._exec_blocks(body, stop)
+                elif t == 'if_else':
+                    cond = p.get('condition', 'always')
+                    result = (cond == 'always') or (cond == 'random' and _rnd.random() < 0.5)
+                    branch = block.get('body' if result else 'else_body', [])
+                    self._exec_blocks(branch, stop)
+            except Exception as exc:
+                self._log.warning(f'[WOZ] Slot {self.rid} program block error ({t}): {exc}')
+
     def as_dict(self) -> dict:
         return {
             'rid':          self.rid,
@@ -490,7 +613,9 @@ class WozNode(Node):
         threading.Thread(target=self._run_flask, args=(host, port), daemon=True).start()
         threading.Thread(target=_get_whisper, daemon=True).start()
 
-        display_host = host if host != '0.0.0.0' else socket.gethostbyname(socket.gethostname())
+        from ros2_robot_bridge.robot_discovery import _local_ips
+        _ips = _local_ips() if host == '0.0.0.0' else [host]
+        display_host = _ips[0] if _ips else host
         self.get_logger().info(f'[WOZ] Web interface → https://{display_host}:{port}')
 
     # ── Robot management ──────────────────────────────────────────────────────
@@ -670,6 +795,36 @@ def _register_routes(app: 'Flask', node: WozNode):
     def robot_vocal(rid):
         return _render_tab('vocal.html', rid)
 
+    @app.route('/r/<int:rid>/blocks')
+    def robot_blocks(rid):
+        return _render_tab('blocks.html', rid)
+
+    @app.route('/r/<int:rid>/run_program', methods=['POST'])
+    def robot_run_program(rid):
+        if not _slot_ok(rid):
+            return jsonify({'error': 'not logged in'}), 403
+        slot = node.get_robot(rid)
+        if slot is None:
+            return jsonify({'error': 'robot not connected'}), 404
+        payload = request.get_json(silent=True) or {}
+        slot.run_program(payload.get('program', []))
+        return jsonify({'ok': True})
+
+    @app.route('/r/<int:rid>/stop_program', methods=['POST'])
+    def robot_stop_program(rid):
+        slot = node.get_robot(rid)
+        if slot is None:
+            return jsonify({'error': 'robot not connected'}), 404
+        slot.stop_program()
+        return jsonify({'ok': True})
+
+    @app.route('/r/<int:rid>/program_status')
+    def robot_program_status(rid):
+        slot = node.get_robot(rid)
+        if slot is None:
+            return jsonify({'running': False})
+        return jsonify({'running': slot.program_running})
+
     # ── Per-robot command endpoint ────────────────────────────────────────────
 
     @app.route('/r/<int:rid>/woz', methods=['POST'])
@@ -722,7 +877,8 @@ def _register_routes(app: 'Flask', node: WozNode):
             return jsonify({})
 
         if button in _WALK_MAP:
-            slot.exec_cmd(action='move', motion_name=_WALK_MAP[button])
+            walk_spd = max(0.0, min(1.0, float(payload.get('walk_speed', 1.0))))
+            slot.exec_cmd(action='move', motion_name=_WALK_MAP[button], speed=walk_spd)
             return jsonify({})
 
         if button in _HEAD_MAP:

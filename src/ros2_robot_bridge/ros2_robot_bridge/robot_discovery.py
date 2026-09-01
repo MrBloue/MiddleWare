@@ -30,14 +30,128 @@ except ImportError:
     _HAS_ZEROCONF = False
 
 
-def _local_ip() -> str:
-    """Return the primary local IPv4 address."""
-    with socket.socket(socket.AF_INET, socket.SOCK_DGRAM) as s:
-        try:
-            s.connect(('8.8.8.8', 80))
-            return s.getsockname()[0]
-        except Exception:
-            return '127.0.0.1'
+def _local_ips() -> list[str]:
+    """Return all non-loopback local IPv4 addresses across all interfaces."""
+    import re
+    import subprocess
+    ips: list[str] = []
+    seen: set[str] = set()
+    try:
+        out = subprocess.check_output(['ip', '-4', 'addr', 'show'], text=True, timeout=2)
+        for ip in re.findall(r'inet (\d+\.\d+\.\d+\.\d+)', out):
+            if not ip.startswith('127.') and ip not in seen:
+                seen.add(ip)
+                ips.append(ip)
+    except Exception:
+        pass
+    if not ips:
+        # Fallback: probe routing table with multiple destinations
+        for dest in ('10.0.0.0', '192.168.0.0', '172.16.0.0', '8.8.8.8'):
+            with socket.socket(socket.AF_INET, socket.SOCK_DGRAM) as s:
+                try:
+                    s.connect((dest, 80))
+                    ip = s.getsockname()[0]
+                    if not ip.startswith('127.') and ip not in seen:
+                        seen.add(ip)
+                        ips.append(ip)
+                except Exception:
+                    pass
+    return ips
+
+
+def _naoqi_version_label(robot_type: str, naoqi_ver: str) -> str:
+    """Convert a NAOqi version string (e.g. '2.8.6.23') to a generation label."""
+    try:
+        major, minor = (int(x) for x in naoqi_ver.split('.')[:2])
+    except Exception:
+        return ''
+    if robot_type == 'nao':
+        return 'v6' if (major, minor) >= (2, 8) else 'v5'
+    if robot_type == 'pepper':
+        # Pepper body generation maps roughly to NAOqi major.minor
+        if (major, minor) >= (2, 9):
+            return 'v2'
+        if (major, minor) >= (2, 5):
+            return 'v1.8'
+        return 'v1'
+    return ''
+
+
+def _http_fetch(ip: str, port: int, timeout: float = 0.5) -> bytes:
+    """Fetch the root HTTP page from ip:port; return raw response bytes or b''."""
+    try:
+        with socket.create_connection((ip, port), timeout=timeout) as s:
+            s.sendall(b'GET / HTTP/1.0\r\nHost: robot\r\nConnection: close\r\n\r\n')
+            data = b''
+            while True:
+                chunk = s.recv(4096)
+                if not chunk:
+                    break
+                data += chunk
+                if len(data) > 16384:
+                    break
+        return data
+    except Exception:
+        return b''
+
+
+def _naoqi_banner(ip: str) -> bytes:
+    """Read the first bytes NAOqi sends after a raw TCP connect on port 9559."""
+    try:
+        with socket.create_connection((ip, 9559), timeout=0.5) as s:
+            return s.recv(256)
+    except Exception:
+        return b''
+
+
+def _detect_naoqi_type_and_version(ip: str, hostname: str) -> tuple[str, str]:
+    """Return (robot_type, version_label) for a reachable NAOqi host (port 9559).
+
+    Priority for type:
+      1. Reverse-DNS hostname keywords (pepper / aldebaran / nao)
+      2. HTTP response on port 80 or 8080 — look for 'pepper' in body
+      3. NAOqi binary banner on port 9559 — robot name embedded in handshake
+      4. Default 'nao'
+    Version extracted from the 4-part version string in the HTTP response.
+    """
+    import re
+
+    low = hostname.lower()
+    if 'pepper' in low:
+        robot_type = 'pepper'
+    elif 'aldebaran' in low and 'nao' not in low:
+        # Pepper robots register under Aldebaran's internal domain; NAO robots don't.
+        robot_type = 'pepper'
+    elif 'nao' in low:
+        robot_type = 'nao'
+    else:
+        robot_type = None
+
+    version_label = ''
+    http_data = b''
+
+    if robot_type is None or not version_label:
+        for port in (80, 8080):
+            data = _http_fetch(ip, port)
+            if data:
+                http_data = data
+                break
+
+    if http_data:
+        body = http_data.lower()
+        if robot_type is None:
+            robot_type = 'pepper' if b'pepper' in body else None
+        m = re.search(rb'(\d+\.\d+\.\d+\.\d+)', http_data)
+        if m:
+            version_label = _naoqi_version_label(robot_type or 'nao', m.group(1).decode())
+
+    # Last resort: read the NAOqi binary handshake — it embeds the robot name
+    if robot_type is None:
+        banner = _naoqi_banner(ip)
+        if b'pepper' in banner.lower():
+            robot_type = 'pepper'
+
+    return (robot_type or 'nao', version_label)
 
 
 def _probe(ip: str, port: int, robot_type: str) -> dict | None:
@@ -49,7 +163,10 @@ def _probe(ip: str, port: int, robot_type: str) -> dict | None:
             name = socket.gethostbyaddr(ip)[0].rstrip('.')
         except Exception:
             name = ip
-        return {'ip': ip, 'port': port, 'robot_type': robot_type, 'name': name}
+        version = ''
+        if port == 9559 and robot_type == 'nao':
+            robot_type, version = _detect_naoqi_type_and_version(ip, name)
+        return {'ip': ip, 'port': port, 'robot_type': robot_type, 'name': name, 'version': version}
     except Exception:
         return None
 
@@ -129,11 +246,17 @@ class RobotDiscovery:
         with self._lock:
             self._scanning = True
         try:
-            local = _local_ip()
-            if local.startswith('127.'):
+            locals_ = _local_ips()
+            if not locals_:
                 return
-            network = ipaddress.ip_network(f'{local}/24', strict=False)
-            results = _scan_subnet(network)
+            results = []
+            seen_nets: set[str] = set()
+            for local in locals_:
+                net = ipaddress.ip_network(f'{local}/24', strict=False)
+                if str(net) in seen_nets:
+                    continue
+                seen_nets.add(str(net))
+                results.extend(_scan_subnet(net))
             with self._lock:
                 self._scan = results
         finally:
