@@ -60,6 +60,14 @@
         .btn-add:disabled { background: #aaa; cursor: default; }
         .btn-add:hover:not(:disabled) { background: #008800; }
 
+        .btn-offline {
+            display: block; width: 100%; padding: 10px; margin-top: 22px;
+            background: #555; color: #fff; border: none;
+            border-radius: 5px; cursor: pointer; font-size: 0.95em;
+            text-align: center; text-decoration: none;
+        }
+        .btn-offline:hover { background: #333; }
+
         .connect-error { color: #cc0000; font-size: 0.9em; margin: 0.4em 0; }
         #loading-msg   { display: none; color: #0055cc; font-size: 0.85em; margin-top: 6px; }
 
@@ -109,9 +117,7 @@
                     <span class="robot-status robot-status--wait">Connexion en cours…</span>
                     {% endif %}
                 </div>
-                {% if r.connected %}
-                <a href="/r/{{ r.rid }}/login" class="btn-open">Ouvrir</a>
-                {% endif %}
+                <a href="/r/{{ r.rid }}/scenarios" class="btn-open">Ouvrir</a>
                 <form class="disconnect-form" action="/robots/{{ r.rid }}/disconnect" method="post"
                       onsubmit="return confirm('Déconnecter ce robot ?')">
                     <button type="submit" class="btn-disconnect">Déconnecter</button>
@@ -154,7 +160,13 @@
                     {% endif %}
 
                     <button type="submit" id="add-btn" class="btn-add">Connecter</button>
-                    <p id="loading-msg">Vérification de la connexion…</p>
+                    <p id="loading-msg">Connexion en cours…</p>
+                </form>
+
+                <form action="/robots/offline" method="post">
+                    <button type="submit" class="btn-offline">
+                        Continuer sans robot (mode démo)
+                    </button>
                 </form>
             </div>
 
@@ -197,6 +209,7 @@ function updateVersions(preselect) {
 function onSubmit() {
     var ip = document.getElementById('robot_ip').value.trim();
     if (!ip) { alert("Veuillez entrer l'adresse IP du robot."); return false; }
+    document.getElementById('add-btn').textContent = 'Connexion…';
     document.getElementById('add-btn').disabled = true;
     document.getElementById('loading-msg').style.display = 'block';
     return true;

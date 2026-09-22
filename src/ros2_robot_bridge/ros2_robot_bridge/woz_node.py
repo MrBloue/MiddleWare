@@ -185,6 +185,10 @@ class _RobotSlot:
         threading.Thread(target=self._connect, daemon=True).start()
 
     def _connect(self):
+        if self.host == 'offline':
+            self.connecting = False
+            self._log.info(f'[WOZ] Slot {self.rid} offline mode — no robot connection')
+            return
         try:
             import qi  # noqa: F401
             s = qi.Session()
@@ -707,11 +711,19 @@ def _register_routes(app: 'Flask', node: WozNode):
                 try:
                     with socket.create_connection((robot_ip, port), timeout=4):
                         pass
-                    rid = node.add_robot(robot_ip, robot_type, robot_version)
-                    return redirect(f'/r/{rid}/login')
-                except OSError as exc:
-                    error = f"Robot non joignable à {robot_ip}:{port} — {exc}"
+                except OSError:
+                    pass  # unreachable — still create the slot and let it connect async
+                rid = node.add_robot(robot_ip, robot_type, robot_version)
+                session[f'rid_{rid}_ok'] = True
+                return redirect(f'/r/{rid}/scenarios')
         return render_template('robots.html', robots=node.all_robots(), error=error)
+
+    @app.route('/robots/offline', methods=['POST'])
+    def robots_offline():
+        """Create an offline/demo slot that needs no real robot."""
+        rid = node.add_robot('offline', 'offline', '')
+        session[f'rid_{rid}_ok'] = True
+        return redirect(f'/r/{rid}/scenarios')
 
     @app.route('/robots/<int:rid>/disconnect', methods=['POST'])
     def disconnect_robot(rid):
@@ -746,11 +758,6 @@ def _register_routes(app: 'Flask', node: WozNode):
         if slot is None:
             return redirect('/robots')
         if request.method == 'POST':
-            if not slot.connected:
-                return render_template('login.html', rid=rid, robot_ip=slot.host,
-                                       robot_type=slot.robot_type,
-                                       connecting=slot.connecting,
-                                       conn_error=slot.error or 'Robot non connecté')
             fname  = request.form.get('fname', '').strip() or 'Enfant'
             lname  = request.form.get('lname', '').strip()
             fname2 = request.form.get('fname2', '').strip() or 'Accompagnant'
