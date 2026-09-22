@@ -715,7 +715,7 @@ def _register_routes(app: 'Flask', node: WozNode):
                     pass  # unreachable — still create the slot and let it connect async
                 rid = node.add_robot(robot_ip, robot_type, robot_version)
                 session[f'rid_{rid}_ok'] = True
-                return redirect(f'/r/{rid}/scenarios')
+                return redirect(f'/r/{rid}/jeux')
         return render_template('robots.html', robots=node.all_robots(), error=error)
 
     @app.route('/robots/offline', methods=['POST'])
@@ -723,7 +723,7 @@ def _register_routes(app: 'Flask', node: WozNode):
         """Create an offline/demo slot that needs no real robot."""
         rid = node.add_robot('offline', 'offline', '')
         session[f'rid_{rid}_ok'] = True
-        return redirect(f'/r/{rid}/scenarios')
+        return redirect(f'/r/{rid}/jeux')
 
     @app.route('/robots/<int:rid>/disconnect', methods=['POST'])
     def disconnect_robot(rid):
@@ -765,7 +765,7 @@ def _register_routes(app: 'Flask', node: WozNode):
             slot.adult_name = fname2
             session[f'rid_{rid}_ok'] = True
             slot.enter_state('begin')
-            return redirect(f'/r/{rid}/scenarios')
+            return redirect(f'/r/{rid}/jeux')
         return render_template('login.html', rid=rid, robot_ip=slot.host,
                                robot_type=slot.robot_type,
                                connecting=slot.connecting,
@@ -773,7 +773,7 @@ def _register_routes(app: 'Flask', node: WozNode):
 
     @app.route('/r/<int:rid>/')
     def robot_root(rid):
-        return redirect(f'/r/{rid}/scenarios')
+        return redirect(f'/r/{rid}/jeux')
 
     def _render_tab(template: str, rid: int):
         if not _slot_ok(rid):
@@ -782,17 +782,22 @@ def _register_routes(app: 'Flask', node: WozNode):
         child = slot.child_name if slot else ''
         return render_template(template, rid=rid, child_name=child)
 
+    @app.route('/r/<int:rid>/jeux')
+    def robot_jeux(rid):
+        return _render_tab('maison.html', rid)
+
+    # Legacy redirects so old bookmarks still work
+    @app.route('/r/<int:rid>/maison')
+    def robot_maison(rid):
+        return redirect(f'/r/{rid}/jeux')
+
     @app.route('/r/<int:rid>/scenarios')
     def robot_scenarios(rid):
-        return _render_tab('scenarios.html', rid)
+        return redirect(f'/r/{rid}/jeux')
 
     @app.route('/r/<int:rid>/reactions')
     def robot_reactions(rid):
-        return _render_tab('reactions.html', rid)
-
-    @app.route('/r/<int:rid>/maison')
-    def robot_maison(rid):
-        return _render_tab('maison.html', rid)
+        return redirect(f'/r/{rid}/jeux')
 
     @app.route('/r/<int:rid>/macros')
     def robot_macros(rid):
