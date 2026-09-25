@@ -126,19 +126,27 @@ Then open `http://<bridge-machine-ip>:5555` in a browser on the same network.
 
 ### Connect page
 
-The browser always lands on `/connect` first. Fill in:
+The browser lands on `/robots` first. Fill in:
 
 - **Type** — `nao`, `pepper`, or `qtrobot`
 - **Version** — version choices update automatically based on type
 - **IP address** — the robot's IP on your network
 
 On submit the WOZ:
-1. Verifies the robot is reachable on its expected port (9559 for NAO/Pepper, 9090 for QTrobot).
-2. Publishes the new host to the `nao_reconnect` topic — `nao_bridge` reconnects immediately without restarting.
-3. Publishes the new type+version to the `robot_reconfig` topic — `robot_detector` updates its config and republishes `robot_config`.
-4. Waits up to 8 s for `command_dispatcher` to confirm the new robot is ready, then redirects to the login page.
+1. Verifies the robot is reachable on its expected port (9559 for NAO/Pepper, 9090 for QTrobot) with a 4-second socket check.
+2. Creates a `_RobotSlot` and starts connecting in a background thread.
+3. Sets the Flask session immediately and redirects to the login page — the robot connects asynchronously; commands silently no-op until connected.
 
-If the robot is already connected, a **"Continuer sans changer"** link skips the form.
+Previously-connected robots are listed at the top of the page with an **"Ouvrir"** button to re-enter their session.
+
+### Internal architecture — WOZ bypasses the ROS pipeline
+
+`woz_node.py` does **not** publish `RobotCmd` messages or use `command_dispatcher`. It maintains its own direct robot connections via `_RobotSlot` objects:
+
+- **NAO / Pepper:** opens a `qi.Session` (port 9559) and calls `ALTextToSpeech`, `ALMotion`, `ALBehaviorManager`, `ALLeds`, `ALAudioDevice` directly.
+- **QTrobot:** opens a `roslibpy.Ros` WebSocket (port 9090) and publishes to `/qt_robot/speech/say`, `/qt_robot/gesture/play`, `/qt_robot/emotion/show`, and joint topics directly.
+
+This means WOZ robot control is completely independent from the `nao_bridge` / `qt_bridge` ROS nodes. The two paths share gesture vocabulary but run in parallel.
 
 ### Login
 
@@ -146,12 +154,13 @@ Enter the therapist's name, the child's first name, and last name. These names a
 
 ### Pages
 
-| Tab | Description |
-|-----|-------------|
-| **Scénario et Jeux** | Scenario launch and explanation buttons grouped by game type |
-| **Réactions** | Quick-reaction buttons (emotions, feedback, questions) for live improvisation |
-| **Maison** | Alternate activity set (symbolic play, mime, manual activities, daily life) |
-| **RobotAct** | Theatre/performance page with expression and posture buttons, plus a walk joystick and a head-look joystick |
+| Tab | Route | Description |
+|-----|-------|-------------|
+| **Scénario et Jeux** | `/r/<rid>/scenarios` | Scenario launch and explanation buttons grouped by game type |
+| **Réactions** | `/r/<rid>/reactions` | Quick-reaction buttons (emotions, feedback, questions) for live improvisation |
+| **Maison** | `/r/<rid>/maison` | Alternate activity set (symbolic play, mime, manual activities, daily life). Includes a head joystick (fixed-position, follows scroll) and a walk joystick with proportional speed control |
+| **Macros** | `/r/<rid>/macros` | Quick-action macro buttons + a **visual block programming editor** (drag-and-drop sequences, Répéter, Si/Sinon blocks). Block programs are saved to `localStorage`. Available at complexity level 3 |
+| **Vocal** | `/r/<rid>/vocal` | Speech-to-text interface — either repeat the recognised text on the robot, or parse it as a command |
 
 All category labels in the UI use the generic term **"Le robot"** and are not tied to any specific robot model.
 
@@ -1288,17 +1297,24 @@ ros2_robot_bridge/
 │   ├── RobotCmd.msg               # Universal command message
 │   └── RobotConfig.msg            # Active robot description
 ├── woz_templates/                 # Flask HTML templates for the WOZ interface
-│   ├── login.html
-│   ├── scenarios.html
-│   ├── reactions.html
-│   ├── theatre.html
-│   └── maison.html
+│   ├── robots.html                # Robot connection/selection page
+│   ├── login.html                 # Session login (child + therapist names)
+│   ├── scenarios.html             # Scénario et Jeux tab
+│   ├── reactions.html             # Réactions tab
+│   ├── maison.html                # Maison tab (with joysticks)
+│   ├── macros.html                # Macros tab (quick actions + block programming)
+│   ├── vocal.html                 # Vocal tab (speech-to-text)
+│   ├── theatre.html               # RobotAct (legacy, standalone)
+│   └── blocks.html                # Block editor standalone (unused, kept for reference)
 ├── woz_static/                    # JS/CSS/image assets served by Flask
-│   ├── woz.js / woz.css           # Core UI logic and styles
+│   ├── woz.js / woz.css           # Core UI logic, joysticks, volume/speed widgets
 │   ├── scenarios.js               # Button definitions for the Scenarios tab
 │   ├── reactions.js               # Button definitions for the Réactions tab
 │   ├── theatre.js                 # Button definitions for the RobotAct tab
-│   └── maison.js                  # Button definitions for the Maison tab
+│   ├── maison.js                  # Button definitions for the Maison tab
+│   ├── macros.js                  # Macro buttons + homebrew button editor
+│   ├── vocal.js                   # Speech recognition and command parsing
+│   └── blocks.js                  # Visual block programming editor
 └── launch/
     └── robot_bridge.launch.py     # Single launch file for all robots
 ```
