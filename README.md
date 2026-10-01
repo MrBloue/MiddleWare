@@ -22,6 +22,88 @@ The user always publishes to `/robot_cmd`. The dispatcher validates the command 
 
 ---
 
+## Getting Started (mode d'emploi)
+
+> **Nouveau sur ce projet ? Commencez ici.** Suivez ces étapes pour aller d'une machine fraîche à une session WOZ fonctionnelle avec votre robot.
+
+### 1. Prérequis système
+
+- **Ubuntu 24.04** avec **ROS 2 Jazzy** installé (`/opt/ros/jazzy`)
+  - Pour Ubuntu 22.04 / Jetson (ROS 2 Humble) : exécutez `bash setup.sh` à la racine du workspace — il installe tout automatiquement.
+- Python 3.10+ (inclus avec Ubuntu 24.04)
+
+### 2. Cloner le dépôt
+
+```bash
+git clone <URL_DU_DEPOT> ~/your_ws/src/ros2_robot_bridge
+```
+
+Ou si vous travaillez sur un Raspberry Pi isolé (pas de connexion internet), voir le workflow de déploiement par bundle git dans les notes de déploiement.
+
+### 3. Installer les dépendances Python
+
+```bash
+pip install -r ~/your_ws/src/ros2_robot_bridge/requirements.txt
+```
+
+Pour **NAO / Pepper**, le SDK `qi` doit aussi être installé. Il n'est pas disponible sur PyPI — récupérez-le depuis le SDK NAOqi officiel (SoftBank Robotics) et placez-le sur votre `PYTHONPATH`.
+
+Pour **QTrobot**, `roslibpy` suffit (il est dans le `requirements.txt`).
+
+### 4. Compiler
+
+```bash
+source /opt/ros/jazzy/setup.bash
+cd ~/your_ws
+colcon build --packages-skip nao_meshes pepper_meshes
+source install/setup.bash
+```
+
+> **Note importante :** sourcez uniquement `/opt/ros/jazzy/setup.bash`, pas d'autres overlays ROS — cela cause un mismatch ABI FastCDR.
+
+### 5. Lancer le bridge avec votre robot
+
+**NAO :**
+```bash
+ros2 launch ros2_robot_bridge robot_bridge.launch.py \
+    robot_type:=nao robot_version:=v5 naoqi_host:=<ROBOT_IP> woz:=true
+```
+
+**Pepper :**
+```bash
+ros2 launch ros2_robot_bridge robot_bridge.launch.py \
+    robot_type:=pepper robot_version:=v1.8 naoqi_host:=<ROBOT_IP> woz:=true
+```
+
+**QTrobot :**
+```bash
+ros2 launch ros2_robot_bridge robot_bridge.launch.py \
+    robot_type:=qtrobot robot_version:=qt2 qt_host:=<QT_IP> woz:=true
+```
+
+Remplacez `<ROBOT_IP>` ou `<QT_IP>` par l'adresse IP de votre robot sur le réseau local.
+
+### 6. Ouvrir l'interface WOZ
+
+Dans un navigateur (sur la même machine ou tout appareil du même réseau) :
+
+```
+https://<IP_DU_BRIDGE>:5555
+```
+
+Le navigateur affichera un avertissement de certificat auto-signé — cliquez sur **"Avancé" → "Continuer quand même"**. Cela est normal et requis pour l'accès microphone sur HTTPS.
+
+Sur la page `/robots` : entrez le type et l'IP du robot, puis cliquez sur **Connecter**. La connexion se fait en arrière-plan (~4 secondes). Vous serez redirigé vers la page de login où vous pouvez entrer les noms de l'enfant et de l'accompagnant.
+
+### 7. Utiliser l'interface
+
+- Naviguez entre les onglets (**Scénarios**, **Réactions**, **Maison**, **Macros**, **Vocal**).
+- Le bouton **⛔ STOP** (toujours visible) arrête tout mouvement et toute parole en cours.
+- Les widgets **Volume** et **Vitesse** (bord gauche) sont persistés dans le navigateur.
+- Niveau de complexité (Simple/Standard/Avancé) : le badge dans le fil d'Ariane déverrouille des fonctions supplémentaires.
+
+---
+
 ## Prerequisites
 
 ### NAO / Pepper
@@ -41,13 +123,40 @@ The bridge connects directly via the **qi SDK** — no naoqi_driver2 required.
   ```
 - `roslibpy` must be installed: `pip install roslibpy`
 
+### Python dependencies
+
+```bash
+pip install -r src/ros2_robot_bridge/requirements.txt
+```
+
+| Package | Purpose |
+|---------|---------|
+| `flask>=3.0` | WOZ web server |
+| `roslibpy>=1.3` | QTrobot rosbridge client |
+| `pyopenssl>=23.0` | HTTPS for WOZ (mic access on LAN) |
+| `faster-whisper>=1.0` | Server-side speech-to-text for the Vocal tab |
+
+The WOZ interface runs over **HTTPS** (self-signed certificate via pyopenssl). Browsers will show a security warning the first time — accept it once. HTTPS is required for microphone access from any device other than localhost.
+
+---
+
+## Jetson / ROS2 Humble
+
+The package is compatible with both **ROS2 Jazzy** (Ubuntu 24.04) and **ROS2 Humble** (Ubuntu 22.04 / Jetson). No code changes are needed when targeting Humble.
+
+`setup.sh` at the workspace root bootstraps a fresh Ubuntu 22.04 / Jetson system end-to-end: locale, ROS2 Humble apt repository, system packages, rosdep, pip dependencies, and colcon build.
+
+```bash
+bash setup.sh
+```
+
 ---
 
 ## Build
 
 ```bash
 source /opt/ros/jazzy/setup.bash
-cd ~/Lutin/mw_ws
+cd ~/your_ws          # replace with your actual workspace path
 colcon build --packages-skip nao_meshes pepper_meshes
 source install/setup.bash
 ```
@@ -59,13 +168,13 @@ source install/setup.bash
 ### NAO
 ```bash
 ros2 launch ros2_robot_bridge robot_bridge.launch.py \
-    robot_type:=nao robot_version:=v5 naoqi_host:=192.168.24.46
+    robot_type:=nao robot_version:=v5 naoqi_host:=<ROBOT_IP>
 ```
 
 ### Pepper
 ```bash
 ros2 launch ros2_robot_bridge robot_bridge.launch.py \
-    robot_type:=pepper robot_version:=v1.8 naoqi_host:=192.168.24.11
+    robot_type:=pepper robot_version:=v1.8 naoqi_host:=<ROBOT_IP>
 ```
 
 `robot_version` is optional for NAO and Pepper (used for display only — does not affect behavior).
@@ -73,7 +182,7 @@ ros2 launch ros2_robot_bridge robot_bridge.launch.py \
 ### QTrobot QT1
 ```bash
 ros2 launch ros2_robot_bridge robot_bridge.launch.py \
-    robot_type:=qtrobot robot_version:=qt1 qt_host:=192.168.100.1
+    robot_type:=qtrobot robot_version:=qt1 qt_host:=<QT_IP>
 ```
 
 ### QTrobot QT2
@@ -111,22 +220,21 @@ The WOZ interface lets an operator remote-control the robot from a browser durin
 
 ### Enable
 
-Pass `woz:=true` to any launch command. Robot connection details are optional at launch — they can be set (or changed) from the browser via the connect page:
+Pass `woz:=true` to any launch command:
 
 ```bash
-# Launch with defaults — configure the robot from the browser
 ros2 launch ros2_robot_bridge robot_bridge.launch.py woz:=true
-
-# Or pre-configure everything at launch
-ros2 launch ros2_robot_bridge robot_bridge.launch.py \
-    robot_type:=nao robot_version:=v5 naoqi_host:=192.168.24.59 woz:=true
 ```
 
-Then open `http://<bridge-machine-ip>:5555` in a browser on the same network.
+Then open `https://<bridge-machine-ip>:5555` in a browser on the same network. Accept the self-signed certificate warning once (required for HTTPS — see the note under Prerequisites).
 
-### Connect page
+### Multi-robot support
 
-The browser lands on `/robots` first. Fill in:
+The WOZ supports **multiple simultaneous robot connections**. Each robot gets its own isolated session at `/r/<rid>/`, with its own qi connection, proxies, and login state.
+
+### Robots page (`/robots`)
+
+The browser always lands on `/robots` first. This page lists all currently connected robots and provides a form to add a new one. Fill in:
 
 - **Type** — `nao`, `pepper`, or `qtrobot`
 - **Version** — version choices update automatically based on type
@@ -137,7 +245,7 @@ On submit the WOZ:
 2. Creates a `_RobotSlot` and starts connecting in a background thread.
 3. Sets the Flask session immediately and redirects to the login page — the robot connects asynchronously; commands silently no-op until connected.
 
-Previously-connected robots are listed at the top of the page with an **"Ouvrir"** button to re-enter their session.
+Robots can be disconnected individually from the `/robots` page. Previously-connected robots are listed at the top with an **"Ouvrir"** button to re-enter their session. The live robot list is also available as JSON at `/robots/status`.
 
 ### Internal architecture — WOZ bypasses the ROS pipeline
 
@@ -150,7 +258,7 @@ This means WOZ robot control is completely independent from the `nao_bridge` / `
 
 ### Login
 
-Enter the therapist's name, the child's first name, and last name. These names are substituted into speech templates at runtime (`child_name` and `adult_name` placeholders in `woz_states.py`). The robot greets the child on submission.
+All fields are optional. Defaults are **Enfant** (child) and **Accompagnant** (therapist) if left blank. Names are substituted into speech templates at runtime (`child_name` and `adult_name` placeholders in `woz_states.py`). The robot greets the child on submission.
 
 ### Pages
 
@@ -158,11 +266,61 @@ Enter the therapist's name, the child's first name, and last name. These names a
 |-----|-------|-------------|
 | **Scénario et Jeux** | `/r/<rid>/scenarios` | Scenario launch and explanation buttons grouped by game type |
 | **Réactions** | `/r/<rid>/reactions` | Quick-reaction buttons (emotions, feedback, questions) for live improvisation |
-| **Maison** | `/r/<rid>/maison` | Alternate activity set (symbolic play, mime, manual activities, daily life). Includes a head joystick (fixed-position, follows scroll) and a walk joystick with proportional speed control |
-| **Macros** | `/r/<rid>/macros` | Quick-action macro buttons + a **visual block programming editor** (drag-and-drop sequences, Répéter, Si/Sinon blocks). Block programs are saved to `localStorage`. Available at complexity level 3 |
-| **Vocal** | `/r/<rid>/vocal` | Speech-to-text interface — either repeat the recognised text on the robot, or parse it as a command |
+| **Maison** | `/r/<rid>/maison` | Alternate activity set (symbolic play, mime, manual activities, daily life) |
+| **Macros** | `/r/<rid>/macros` | Quick motion presets, relax/stiffen controls, custom macro buttons (level 2+), and a drag-and-drop block programming editor (level 3) |
+| **Vocal** | `/r/<rid>/vocal` | Browser microphone → server-side Whisper transcription → robot repeats or executes a voice command |
+
+All tabs include a walk joystick (bottom-right) and a head-look joystick (bottom-left). An **⛔ STOP** button is always visible — pressing it stops all motor movement and interrupts any ongoing speech.
+
+Two persistent widgets appear on the left edge of every page:
+- **🔊 Volume** — adjusts robot audio output in ±10 % steps (0–100 %), persisted in localStorage.
+- **🏃 Speed** — sets the walk joystick speed multiplier in 5 steps (levels 1–5 → 20 %–100 % of max velocity), persisted in localStorage. Affects the walk joystick only; macro and block-program speeds are unaffected.
+
+### Complexity levels
+
+A badge in the breadcrumb lets the operator choose a complexity level (Simple / Standard / Avancé). Higher levels reveal additional controls:
+
+| Level | Label | Controls shown |
+|-------|-------|---------------|
+| 1 | Simple | Quick moves, Relax/Stiffen |
+| 2 | Standard | + Custom macro buttons and form |
+| 3 | Avancé | + Block programming editor |
+
+The chosen level is persisted in localStorage.
+
+### Block programming (Macros tab, level 3)
+
+A drag-and-drop visual block editor lets an operator build and run multi-step robot programs without writing code.
+
+**Block types:**
+
+| Block | Description |
+|-------|-------------|
+| **Mouvement** | Run a named motion (same vocabulary as the quick moves) at a configurable speed |
+| **Parler** | Robot says a text string |
+| **LEDs** | Set an LED group to a chosen color |
+| **Émotion** | Display a named emotion on the LEDs |
+| **Attendre** | Pause execution for N seconds (interruptible by Stop) |
+| **Répéter** | Repeat a nested sequence N times |
+| **Si/Sinon** | Branch: always, or random 50/50 |
+
+Blocks are dragged from the palette into the program area. Container blocks (Répéter, Si/Sinon) accept nested blocks in their body. Programs are saved by name in localStorage and re-loaded on next visit. **▶ Exécuter** runs the program on the server; **⏹ Stop** interrupts it at the next block boundary.
 
 All category labels in the UI use the generic term **"Le robot"** and are not tied to any specific robot model.
+
+### Vocal tab
+
+The Vocal tab lets the operator speak into the browser microphone and have the robot react.
+
+**Modes:**
+- **Répéter** — the robot repeats the transcribed speech verbatim. Whisper runs with natural speech settings (unbiased, temperature 0.2).
+- **Commander** — Whisper runs with deterministic settings (temperature 0, vocabulary-biased prompt) and the transcribed text is matched against 57+ French voice commands. On a match the corresponding motion, emotion, walk, or motor action is dispatched; on no match the text is spoken.
+
+**Speed slider** (0.1 – 1.0, persisted in localStorage): scales the speed of motion commands sent from the Vocal tab, mirroring the volume slider behaviour on RobotAct.
+
+**Setup:** The Vocal tab requires the browser to be on the same HTTPS origin as the WOZ server. Open `https://<bridge-ip>:5555` (note the `https://`), accept the self-signed certificate warning once, then the mic permission prompt will appear normally on any device.
+
+**Server-side transcription:** `faster-whisper` (model: `small`, CPU, int8) is loaded lazily at first use and pre-warmed in a background thread at startup. Audio is recorded in the browser using the `MediaRecorder` API (works in Firefox, Chrome, and Safari) and uploaded as a blob to `/woz_transcribe`.
 
 ### State machine
 
@@ -173,12 +331,12 @@ Each button sends a state name to the `/woz` endpoint. The state machine in `woz
 | `s` | Speech text | `RobotCmd(action='speak')` |
 | `e` | Emotion / animation name | `RobotCmd(action='display', emotion=...)` |
 | `g` | Gesture name | `RobotCmd(action='move', motion_name=...)` |
-| `h` | `[yaw_deg, pitch_deg]` head angles | `RobotCmd(action='move', motion_name='HeadYaw:r,HeadPitch:r')` |
+| `h` | `[yaw_deg, pitch_deg]` head angles | `RobotCmd(action='move', motion_name='HeadYaw:r,HeadPitch:r')` — degrees stored in state machine, converted to radians before publishing |
 | `la` | `[pitch, roll, elbow]` left arm degrees | `RobotCmd(action='move', motion_name='LShoulderPitch:r,...')` |
 | `ra` | `[pitch, roll, elbow]` right arm degrees | `RobotCmd(action='move', motion_name='RShoulderPitch:r,...')` |
 | `spd` | Posture transition speed 0.0–1.0 | `RobotCmd(speed=...)` — applies to posture changes (`Stand`, `Sit`, …) |
 
-Angles are stored in degrees in `woz_states.py` and converted to radians before publishing.
+Angles are stored in degrees everywhere (state machine and `_HEAD_MAP`) and converted to radians before publishing. This applies both to scripted behaviors and to the head-look joystick on the RobotAct tab.
 
 States can chain via time-based auto-transitions: `('time', seconds, next_state)`. Pressing any button cancels the pending timer and jumps directly to the chosen state.
 
@@ -195,7 +353,7 @@ NAO-compatible tags that pass through unchanged: `\pau=N\` (pause ms), `\rspd=N\
 
 ### Gesture and emotion mapping (NAO / Pepper)
 
-`qt/...` and `QT/...` gesture paths from `woz_states.py` are translated to NAO equivalents via two dicts in `nao_bridge.py`:
+Gesture name lookup is **case-insensitive** — `QT/happy`, `qt/happy`, and `Qt/Happy` all resolve to the same NAO animation. `qt/...` gesture paths from `woz_states.py` are translated to NAO equivalents via two dicts in `nao_behavior_tables.py`:
 
 - **`QT_TO_NAO_BEHAVIOR`** — maps to a `BEHAVIORS` or `GESTURES` key for execution.
 - **`QT_TO_NAO_MOTION`** — maps to a `GESTURES` key, or `None` to silently skip (used for QT-specific paths that have no meaningful NAO equivalent).
@@ -256,7 +414,7 @@ ros2 topic pub --once /robot_cmd ros2_robot_bridge/msg/RobotCmd "{...}"
 
 | Field | Type | Description |
 |-------|------|-------------|
-| `action` | string | `speak`, `move`, `display`, `relax`, or `stiffen` |
+| `action` | string | `speak`, `move`, `display`, `relax`, `stiffen`, or `volume` |
 | `text` | string | Text to say |
 | `language` | string | Language code (e.g. `en-US`, `fr-FR`) |
 | `motion_name` | string | Motion, posture, gesture, walk command, or behavior name |
@@ -321,15 +479,17 @@ ros2 topic pub --once /robot_cmd ros2_robot_bridge/msg/RobotCmd \
 
 | `motion_name` | Description |
 |---------------|-------------|
-| `walk_forward` | Forward — max 0.35 m/s at speed=1.0 |
-| `walk_backward` | Backward — max 0.35 m/s |
-| `walk_left` | Sidestep left — max 0.2 m/s |
-| `walk_right` | Sidestep right — max 0.2 m/s |
-| `turn_left` | Rotate left — max 0.5 rad/s |
-| `turn_right` | Rotate right — max 0.5 rad/s |
+| `walk_forward` | Forward — max 1.0 m/s at speed=1.0 |
+| `walk_backward` | Backward — max 1.0 m/s |
+| `walk_left` | Sidestep left — max 0.5 m/s |
+| `walk_right` | Sidestep right — max 0.5 m/s |
+| `turn_left` | Rotate left — max 1.0 rad/s |
+| `turn_right` | Rotate right — max 1.0 rad/s |
 | `stop` | Stop walking |
 
-The `speed` field scales all velocities linearly (e.g. `speed: 0.5` → 0.175 m/s forward).
+The `speed` field scales all velocities linearly (e.g. `speed: 0.5` → 0.5 m/s forward).
+
+**WOZ joystick:** the walk joystick sends a `walk_speed` value proportional to how far the stick is pushed (0.0–1.0), further multiplied by the 🏃 speed widget level. This gives smooth analog speed control — push gently for slow walking, push to the edge for maximum speed. The horizontal dead zone is widened so pushing forward does not accidentally trigger rotation.
 
 ### Postures (NAO / Pepper)
 
@@ -353,7 +513,7 @@ ros2 topic pub --once /robot_cmd ros2_robot_bridge/msg/RobotCmd \
 
 One-shot gestures run once and return to neutral. **Infinite-loop gestures** (marked ∞) run until interrupted by any other `move` command. Only the joints used by each gesture are stiffened — relaxed body parts remain relaxed.
 
-> **Pepper:** `ALAutonomousLife` is permanently disabled when the bridge connects. It is never re-enabled during the session. `wakeUp()` is called once to engage the motors.
+> **NAO / Pepper:** `ALAutonomousLife` is disabled at connect and re-disabled before every walk command so the life manager cannot block motion. Motor stiffness is set to 1.0 at connect (`setStiffnesses`) without forcing a stand-up posture (`wakeUp` is not called, so the robot stays in whatever posture it is in when the WOZ connects).
 
 ```bash
 ros2 topic pub --once /robot_cmd ros2_robot_bridge/msg/RobotCmd \
@@ -418,6 +578,8 @@ ros2 topic pub --once /robot_cmd ros2_robot_bridge/msg/RobotCmd \
 ### Built-in NAOqi Behaviors (NAO / Pepper)
 
 Runs behaviors installed on the robot via `ALBehaviorManager`. The names below are pre-mapped and confirmed on a NAO H25 v5 with NAOqi 2.1.4. Names not listed can still be run using the `behavior:` escape hatch.
+
+If a behavior is not installed on the target robot, the WOZ falls through to the `GESTURES` table automatically. For example, `applause` maps to `animations/Stand/Gestures/Applause_1`; on NAOs that don't have this behavior pack, it falls back to the `clapping` joint-sequence gesture.
 
 ```bash
 ros2 topic pub --once /robot_cmd ros2_robot_bridge/msg/RobotCmd \
@@ -997,6 +1159,26 @@ ros2 topic pub --once /robot_cmd ros2_robot_bridge/msg/RobotCmd \
 
 ---
 
+## volume
+
+Set the robot's audio output volume.
+
+```bash
+ros2 topic pub --once /robot_cmd ros2_robot_bridge/msg/RobotCmd \
+    "{action: 'volume', speed: 0.6}"
+```
+
+`speed` is the target level in the `0.0`–`1.0` range (e.g. `0.5` = 50 %).
+
+**NAO / Pepper:** calls `ALAudioDevice.setOutputVolume(0–100)` via qi.  
+**QTrobot:** not implemented — command is silently skipped and logged.
+
+The WOZ interface shows two persistent widgets on the left edge of every page, above the head-look joystick:
+- **🔊 Volume** — two circular **+** / **−** buttons adjust output volume by ±10 pp (0–100 %, default 50 %). The current level is displayed between the buttons and persisted in localStorage.
+- **🏃 Speed** — two circular **+** / **−** buttons cycle through 5 walk speed levels (1–5, default 3 = 60 % of max). The current level is displayed between the buttons and persisted in localStorage.
+
+---
+
 ## relax / stiffen
 
 Set joint stiffness to 0 (limp) or 1 (rigid). Use `motion_name` to specify which body part.
@@ -1090,13 +1272,13 @@ ssh nao@<NAO_IP> "naoqi --version 2>/dev/null | head -3"
 | `/joint_angles` | `JointAnglesWithSpeed` | NAO/Pepper joint fallback (when qi not available) |
 | `/cmd_vel` | `geometry_msgs/Twist` | Walking fallback (when qi not available) |
 
-> **Note:** `nao_reconnect` and `robot_reconfig` are relative topics (namespaced). They let the WOZ connect page switch robots at runtime using ROS2 topic messages instead of `ros2 param set` subprocesses, which are unreliable under DDS discovery constraints.
+> **Note:** `nao_reconnect` and `robot_reconfig` are retained for backwards compatibility with single-robot setups. In multi-robot WOZ mode, each `_RobotSlot` manages its own qi session directly — robot switching is handled by adding/removing slots on the `/robots` page rather than by republishing these topics.
 
 ---
 
 ## Sensor Topics (NAO / Pepper)
 
-`nao_sensors` publishes live sensor data. All topics are relative to the node namespace, which is `{robot_type}_{last_ip_octet}` (e.g. `nao_46` for IP `192.168.24.46`).
+`nao_sensors` publishes live sensor data. All topics are relative to the node namespace, which is `{robot_type}_{last_ip_octet}` (e.g. `nao_46` for IP `192.168.x.46`).
 
 ### List all sensor topics
 ```bash
@@ -1162,7 +1344,7 @@ ros2 topic echo /nao_46/audio/localization/confidence # 0.0 to 1.0
 
 ### RobotCmd.msg
 ```
-string action        # speak | move | display | relax | stiffen
+string action        # speak | move | display | relax | stiffen | volume
 string text
 string language
 string motion_name
@@ -1261,7 +1443,7 @@ install(PROGRAMS
 
 ```bash
 source /opt/ros/jazzy/setup.bash
-cd ~/Lutin/mw_ws
+cd ~/your_ws
 colcon build --packages-select ros2_robot_bridge
 source install/setup.bash
 ```
@@ -1289,15 +1471,16 @@ ros2_robot_bridge/
 │   ├── qt_bridge.py               # QTrobot command executor
 │   ├── nao_sensors.py             # NAO / Pepper sensor publisher (ALMemory polling via qi)
 │   ├── qt_sensor.py               # QTrobot sensor bridge (ROS1 → ROS2 via roslibpy)
-│   ├── woz_node.py                # Wizard-of-Oz Flask web interface node
+│   ├── woz_node.py                # Wizard-of-Oz Flask web interface node (multi-robot)
 │   ├── woz_states.py              # WOZ state machine (behaviors and auto-transitions)
+│   ├── nao_behavior_tables.py     # Pure-data tables: BEHAVIORS, GESTURES, QT_TO_NAO_* dicts
 │   ├── robot_bridge_template.py   # Starting point for new robot adapters (command bridge)
 │   └── robot_sensor_template.py   # Starting point for new robot sensor nodes
 ├── msg/
 │   ├── RobotCmd.msg               # Universal command message
 │   └── RobotConfig.msg            # Active robot description
 ├── woz_templates/                 # Flask HTML templates for the WOZ interface
-│   ├── robots.html                # Robot connection/selection page
+│   ├── robots.html                # Robot connection/selection page (landing page)
 │   ├── login.html                 # Session login (child + therapist names)
 │   ├── scenarios.html             # Scénario et Jeux tab
 │   ├── reactions.html             # Réactions tab
@@ -1313,10 +1496,12 @@ ros2_robot_bridge/
 │   ├── theatre.js                 # Button definitions for the RobotAct tab
 │   ├── maison.js                  # Button definitions for the Maison tab
 │   ├── macros.js                  # Macro buttons + homebrew button editor
-│   ├── vocal.js                   # Speech recognition and command parsing
+│   ├── vocal.js                   # Vocal tab: MediaRecorder, Whisper client, command dispatch
 │   └── blocks.js                  # Visual block programming editor
 └── launch/
     └── robot_bridge.launch.py     # Single launch file for all robots
+requirements.txt                   # pip dependencies (flask, roslibpy, pyopenssl, faster-whisper)
+setup.sh                           # Bootstrap script for fresh Ubuntu 22.04 / Jetson systems
 ```
 
 ### robot_detector.py
@@ -1339,7 +1524,7 @@ The node also subscribes to the `robot_reconfig` topic (format: `robot_type:robo
 
 Responsibilities:
 - Drops commands if no robot config has been received yet, or if the robot is not marked ready.
-- Rejects unknown actions (`speak`, `move`, `display`, `relax`, `stiffen` are valid).
+- Rejects unknown actions (`speak`, `move`, `display`, `relax`, `stiffen`, `volume` are valid).
 - Deduplicates: if the exact same command (all fields) arrives again within 1 second it is silently dropped. This makes it safe to publish with `--times 3` for DDS reliability without executing the action multiple times.
 - Prunes the dedup cache periodically so memory stays bounded.
 
@@ -1353,7 +1538,7 @@ The dispatcher is intentionally **robot-agnostic** — it knows nothing about NA
 
 #### Connection lifecycle
 
-On receiving an active `RobotConfig`, the node opens a `qi.Session` in a background thread and acquires proxies for five services: `ALRobotPosture`, `ALLeds`, `ALMotion`, `ALTextToSpeech`, and `ALBehaviorManager`. If the `qi` SDK is not installed the node falls back to publishing on ROS topics (`/speech`, `/joint_angles`, `/cmd_vel`).
+On receiving an active `RobotConfig`, the node opens a `qi.Session` in a background thread and acquires proxies for six services: `ALRobotPosture`, `ALLeds`, `ALMotion`, `ALTextToSpeech`, `ALBehaviorManager`, and `ALAudioDevice`. If the `qi` SDK is not installed the node falls back to publishing on ROS topics (`/speech`, `/joint_angles`, `/cmd_vel`).
 
 A 60-second keepalive timer calls `ALTextToSpeech.getLanguage()` to prevent the NAOqi TCP connection from closing after long idle periods. If the ping fails, a reconnect thread retries `_connect_qi` up to 5 times with exponential backoff (5 s, 10 s, 15 s, 20 s, 25 s). A `threading.Lock` ensures at most one reconnect thread runs at a time.
 
@@ -1380,7 +1565,59 @@ All gesture and behavior calls run in daemon threads so the ROS spin loop is nev
 
 #### Stiffness control
 
-`relax`/`stiffen` call `ALMotion.setStiffnesses()`. `ALAutonomousLife` is permanently disabled at connect time (not per command), so it cannot override stiffness changes during the session. Full-body relax calls `ALMotion.rest()` so Pepper's safety system cooperates.
+`relax`/`stiffen` call `ALMotion.setStiffnesses()`. Full-body relax calls `ALMotion.rest()` so Pepper's safety system cooperates.
+
+#### Autonomous life suppression (Pepper)
+
+`ALAutonomousLife` is disabled at connect time and re-disabled after every command via the `_after_cmd` hook defined in `base_bridge.py`. Pepper's tablet re-enables autonomous life whenever the user interacts with it, so the hook runs unconditionally after each dispatch. The keepalive timer (60 s) also checks the state and disables it if re-enabled externally.
+
+---
+
+### nao_behavior_tables.py
+
+**Role:** Pure-data module shared by `nao_bridge.py` and `woz_node.py`. Contains no ROS or qi imports so it can be loaded in any process without triggering SDK import failures.
+
+| Dict | Contents |
+|------|----------|
+| `BEHAVIORS` | ~391 entries mapping short names → installed NAOqi behavior paths (`animations/Stand/...`) |
+| `GESTURES` | ~50 named joint-angle sequences executed via `ALMotion.angleInterpolationWithSpeed()`. Dict-type gestures have `init`/`loop`/`cleanup` phases. |
+| `QT_TO_NAO_BEHAVIOR` | Maps QTrobot gesture paths to `BEHAVIORS` keys |
+| `QT_TO_NAO_MOTION` | Maps QTrobot gesture paths to `GESTURES` keys (`None` = silently skip) |
+
+`GESTURES["applause"]` is aliased to `GESTURES["clapping"]` so `applause` degrades gracefully on NAOs that don't have the `Applause_1` behavior pack installed.
+
+---
+
+### woz_node.py
+
+**Role:** Flask web server embedded in a ROS2 node. Manages multiple simultaneous robot connections, each with its own qi session and Flask session namespace.
+
+#### Multi-robot architecture
+
+Each connected robot is represented by a `_RobotSlot` instance that owns:
+- A `qi.Session` and six service proxies (same set as `nao_bridge.py`)
+- An independent login state and child/therapist name
+- A per-slot URL namespace `/r/<rid>/...`
+
+Slots are created via `WozNode.add_robot()` (called from the `/robots` POST handler) and removed via `remove_robot()`. A `threading.Lock` protects the `_robots` dict. The `/robots/status` endpoint returns the live slot list as JSON.
+
+#### Motion resolution in `_RobotSlot._do_move`
+
+Runs in a daemon thread. Resolution order:
+
+1. **`_SLOT_POSTURES`** — `ALRobotPosture.goToPosture()` (stand, sit, …)
+2. **`_SLOT_WALK`** — `ALMotion.moveToward()` (walk_forward, stop, …)
+3. **`Joint:angle,...`** format — raw joint control via `ALMotion.setAngles()`
+4. **`_NAO_BEHAVIORS`** — `ALBehaviorManager.runBehavior()` via `nao_behavior_tables`
+5. **`QT_TO_NAO_BEHAVIOR` / `QT_TO_NAO_MOTION`** — QTrobot path translation, then BEHAVIORS lookup
+6. **Last resort** — `isBehaviorInstalled()` + `runBehavior()` for raw paths
+7. **`_NAO_GESTURES`** — joint-angle step sequences from `nao_behavior_tables.GESTURES`
+
+If a behavior fails with "not installed", execution falls through to the GESTURES check automatically. All errors are logged at WARNING level.
+
+#### TTS and state machine
+
+Button presses send a state name to `/r/<rid>/woz`. The slot looks up the state in `woz_states.py`, strips QTrobot-specific markup, and dispatches `speak`/`move`/`display` commands directly via qi (bypassing the ROS2 topic pipeline). Auto-transitions use a per-slot timer that can be cancelled by any new button press.
 
 ---
 
