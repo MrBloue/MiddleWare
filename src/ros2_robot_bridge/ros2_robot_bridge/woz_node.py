@@ -39,6 +39,18 @@ from ros2_robot_bridge.nao_behavior_tables import (  # noqa: E402
     GESTURES as _NAO_GESTURES,
     BEHAVIOR_FALLBACKS as _BEHAVIOR_FALLBACKS,
 )
+try:
+    from ros2_robot_bridge.qt_bridge import (  # noqa: E402
+        QT_MOTION_MAP as _QT_MOTION_MAP,
+        QT_TOPICS as _QT_TOPICS,
+        QT_EMOTION_MAP as _QT_EMOTION_MAP,
+        QT_CUSTOM_GESTURES as _QT_CUSTOM_GESTURES,
+        QT_JOINT_TOPICS as _QT_JOINT_TOPICS,
+        QT_JOINT_ORDER as _QT_JOINT_ORDER,
+    )
+    _HAS_QT_MAPS = True
+except ImportError:
+    _HAS_QT_MAPS = False
 
 # ── Whisper (lazy) ────────────────────────────────────────────────────────────
 
@@ -174,6 +186,9 @@ class _RobotSlot:
         self._leds        = None
         self._behavior    = None
         self._audio       = None
+        self._qt_client   = None   # roslibpy.Ros for QTrobot
+        self._qt_pubs     = {}     # cached roslibpy.Topic publishers
+        self._qt_joint_pos = {}    # last commanded joint angles (degrees)
         self.connected    = False
         self.connecting   = True
         self.error        = ''
@@ -185,6 +200,9 @@ class _RobotSlot:
         threading.Thread(target=self._connect, daemon=True).start()
 
     def _connect(self):
+        if self.robot_type == 'qtrobot':
+            self._connect_qt()
+            return
         try:
             import qi  # noqa: F401
             s = qi.Session()
@@ -267,6 +285,51 @@ class _RobotSlot:
             self.error      = str(exc)
             self._log.error(f'[WOZ] Slot {self.rid} connect failed: {exc}')
 
+    def _connect_qt(self):
+        try:
+            import roslibpy  # noqa: F401
+        except ImportError:
+            self.connecting = False
+            self.error = 'roslibpy not installed'
+            self._log.error(f'[WOZ] Slot {self.rid} QT connect failed: roslibpy not installed')
+            return
+        version = self.robot_version or 'qt1'
+        topics  = _QT_TOPICS.get(version, _QT_TOPICS['qt1']) if _HAS_QT_MAPS else {}
+
+        def _on_ready():
+            self.connected  = True
+            self.connecting = False
+            self._log.info(f'[WOZ] Slot {self.rid} QT connected: {self.host}:9090 ({version})')
+            # Pre-advertise speech and emotion topics
+            try:
+                for key in ('speech', 'display_emotion'):
+                    if key in topics and key not in self._qt_pubs:
+                        t = roslibpy.Topic(self._qt_client, topics[key], 'std_msgs/String')
+                        t.advertise()
+                        self._qt_pubs[key] = t
+                if 'move' in topics and 'move' not in self._qt_pubs:
+                    t = roslibpy.Topic(self._qt_client, topics['move'], 'std_msgs/String')
+                    t.advertise()
+                    self._qt_pubs['move'] = t
+                # Pre-advertise joint topics
+                for group_key, topic_name in (_QT_JOINT_TOPICS.items() if _HAS_QT_MAPS else {}.items()):
+                    key = f'traj_{group_key}'
+                    if key not in self._qt_pubs:
+                        t = roslibpy.Topic(self._qt_client, topic_name, 'std_msgs/Float64MultiArray')
+                        t.advertise()
+                        self._qt_pubs[key] = t
+            except Exception as exc:
+                self._log.warning(f'[WOZ] Slot {self.rid} QT advertise error: {exc}')
+
+        try:
+            self._qt_client = roslibpy.Ros(host=self.host, port=9090)
+            self._qt_client.on_ready(_on_ready)
+            self._qt_client.run()  # blocks until disconnected
+        except Exception as exc:
+            self.connecting = False
+            self.error = str(exc)
+            self._log.error(f'[WOZ] Slot {self.rid} QT connect failed: {exc}')
+
     def disconnect(self):
         if self.auto_timer:
             self.auto_timer.cancel()
@@ -276,7 +339,14 @@ class _RobotSlot:
                 self._qi.close()
         except Exception:
             pass
-        self._qi       = None
+        try:
+            if self._qt_client:
+                self._qt_client.terminate()
+        except Exception:
+            pass
+        self._qi        = None
+        self._qt_client = None
+        self._qt_pubs   = {}
         self.connected  = False
         self.connecting = False
 
@@ -288,6 +358,7 @@ class _RobotSlot:
         threading.Thread(target=self._do_exec, args=(action,), kwargs=kwargs, daemon=True).start()
 
     def _do_exec(self, action: str, **kwargs):
+        is_qt = (self.robot_type == 'qtrobot')
         try:
             if action == 'speak':
                 self._do_speak(kwargs.get('text', ''), kwargs.get('language', self.language))
@@ -300,29 +371,41 @@ class _RobotSlot:
                     kwargs.get('color', 'white'),
                 )
             elif action == 'relax':
-                if self._tts:
-                    try:
-                        self._tts.stopAll()
-                    except Exception:
-                        pass
-                part = kwargs.get('motion_name', 'body')
-                if self._motion:
-                    if part == 'body':
-                        self._motion.rest()
-                    else:
-                        self._motion.setStiffnesses(part, 0.0)
+                if is_qt:
+                    pass  # QTrobot has no stiffness control via WOZ
+                else:
+                    if self._tts:
+                        try:
+                            self._tts.stopAll()
+                        except Exception:
+                            pass
+                    part = kwargs.get('motion_name', 'body')
+                    if self._motion:
+                        if part == 'body':
+                            self._motion.rest()
+                        else:
+                            self._motion.setStiffnesses(part, 0.0)
             elif action == 'stiffen':
-                if self._motion:
+                if not is_qt and self._motion:
                     self._motion.wakeUp()
             elif action == 'volume':
-                level = int(float(kwargs.get('speed', 0.5)) * 100)
-                if self._audio:
-                    self._audio.setOutputVolume(level)
+                if not is_qt:
+                    level = int(float(kwargs.get('speed', 0.5)) * 100)
+                    if self._audio:
+                        self._audio.setOutputVolume(level)
         except Exception as exc:
             self._log.warning(f'[WOZ] Slot {self.rid} exec error ({action}): {exc}')
 
     def _do_speak(self, text: str, language: str):
-        if not self._tts or not text:
+        if not text:
+            return
+        if self.robot_type == 'qtrobot':
+            pub = self._qt_pubs.get('speech')
+            if pub and self._qt_client and self._qt_client.is_connected:
+                import roslibpy
+                pub.publish(roslibpy.Message({'data': text}))
+            return
+        if not self._tts:
             return
         nao_lang = _SLOT_LANG.get(language, 'French')
         self._tts.setLanguage(nao_lang)
@@ -330,6 +413,9 @@ class _RobotSlot:
 
     def _do_move(self, motion_name: str, speed: float):
         if not motion_name:
+            return
+        if self.robot_type == 'qtrobot':
+            self._do_move_qt(motion_name, speed)
             return
         mn_lower = motion_name.lower()
 
@@ -415,7 +501,116 @@ class _RobotSlot:
             except Exception as exc:
                 self._log.warning(f'[WOZ] Slot {self.rid} gesture error ({motion_name}): {exc}')
 
+    # ── QTrobot-specific helpers ──────────────────────────────────────────────
+
+    def _qt_pub(self, key: str, data: str):
+        """Publish a std_msgs/String to a pre-advertised QTrobot topic."""
+        if not (self._qt_client and self._qt_client.is_connected):
+            return
+        pub = self._qt_pubs.get(key)
+        if pub is None:
+            return
+        try:
+            import roslibpy
+            pub.publish(roslibpy.Message({'data': data}))
+        except Exception as exc:
+            self._log.warning(f'[WOZ] Slot {self.rid} QT pub error ({key}): {exc}')
+
+    def _qt_pub_joints(self, group_key: str, joints: list, angles: list):
+        """Publish a Float64MultiArray to a joint group topic."""
+        if not (self._qt_client and self._qt_client.is_connected) or not _HAS_QT_MAPS:
+            return
+        order = _QT_JOINT_ORDER.get(group_key, [])
+        requested = dict(zip(joints, angles))
+        data = [requested.get(j, self._qt_joint_pos.get(j, 0.0)) for j in order]
+        for j, v in zip(order, data):
+            self._qt_joint_pos[j] = v
+        key = f'traj_{group_key}'
+        pub = self._qt_pubs.get(key)
+        if pub is None:
+            return
+        try:
+            import roslibpy
+            pub.publish(roslibpy.Message({
+                'layout': {'dim': [], 'data_offset': 0},
+                'data': data,
+            }))
+        except Exception as exc:
+            self._log.warning(f'[WOZ] Slot {self.rid} QT joint pub error: {exc}')
+
+    def _do_move_qt(self, motion_name: str, speed: float):
+        if not _HAS_QT_MAPS:
+            return
+        raw = motion_name.strip()
+        mn_lower = raw.lower()
+
+        # Direct joint control: "Joint:angle,..."
+        if ':' in raw:
+            head_j, head_a = [], []
+            left_j, left_a = [], []
+            right_j, right_a = [], []
+            _NAO_TO_QT = {
+                'LShoulderPitch': 'LeftShoulderPitch', 'LShoulderRoll': 'LeftShoulderRoll',
+                'LElbowRoll': 'LeftElbowRoll',
+                'RShoulderPitch': 'RightShoulderPitch', 'RShoulderRoll': 'RightShoulderRoll',
+                'RElbowRoll': 'RightElbowRoll',
+            }
+            for token in raw.split(','):
+                if ':' not in token:
+                    continue
+                j, a = token.strip().split(':', 1)
+                j = _NAO_TO_QT.get(j.strip(), j.strip())
+                try:
+                    angle = float(a.strip())
+                except ValueError:
+                    continue
+                if j.startswith('Head'):
+                    head_j.append(j); head_a.append(angle)
+                elif j.startswith('Left'):
+                    left_j.append(j); left_a.append(angle)
+                elif j.startswith('Right'):
+                    right_j.append(j); right_a.append(angle)
+            for gk, jl, al in [('head', head_j, head_a), ('left', left_j, left_a), ('right', right_j, right_a)]:
+                if jl:
+                    self._qt_pub_joints(gk, jl, al)
+            return
+
+        # Custom joint-keyframe gestures
+        if mn_lower in _QT_CUSTOM_GESTURES:
+            steps = _QT_CUSTOM_GESTURES[mn_lower]
+            def _run_custom(steps=steps):
+                for joints_dict, hold in steps:
+                    h_j, h_a, l_j, l_a, r_j, r_a = [], [], [], [], [], []
+                    for joint, angle in joints_dict.items():
+                        if joint.startswith('Head'):
+                            h_j.append(joint); h_a.append(angle)
+                        elif joint.startswith('Left'):
+                            l_j.append(joint); l_a.append(angle)
+                        elif joint.startswith('Right'):
+                            r_j.append(joint); r_a.append(angle)
+                    for gk, jl, al in [('head', h_j, h_a), ('left', l_j, l_a), ('right', r_j, r_a)]:
+                        if jl:
+                            self._qt_pub_joints(gk, jl, al)
+                    time.sleep(hold)
+            threading.Thread(target=_run_custom, daemon=True).start()
+            return
+
+        # Named gestures via QT_MOTION_MAP → /qt_robot/gesture/play
+        qt_name = _QT_MOTION_MAP.get(mn_lower)
+        if qt_name is None:
+            return  # no equivalent
+        if not qt_name.startswith('@'):
+            qt_name = f'QT/{qt_name}'
+        else:
+            qt_name = qt_name[1:]  # strip '@'
+        self._qt_pub('move', qt_name)
+
     def _do_display(self, emotion: str, led_name: str, color: str):
+        if self.robot_type == 'qtrobot':
+            if emotion and _HAS_QT_MAPS:
+                qt_emotion = _QT_EMOTION_MAP.get(emotion.lower(), emotion.lower())
+                self._qt_pub('display_emotion', qt_emotion)
+            return
         if not self._leds:
             return
         if emotion:

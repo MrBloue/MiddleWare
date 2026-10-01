@@ -22,6 +22,88 @@ The user always publishes to `/robot_cmd`. The dispatcher validates the command 
 
 ---
 
+## Getting Started (mode d'emploi)
+
+> **Nouveau sur ce projet ? Commencez ici.** Suivez ces étapes pour aller d'une machine fraîche à une session WOZ fonctionnelle avec votre robot.
+
+### 1. Prérequis système
+
+- **Ubuntu 24.04** avec **ROS 2 Jazzy** installé (`/opt/ros/jazzy`)
+  - Pour Ubuntu 22.04 / Jetson (ROS 2 Humble) : exécutez `bash setup.sh` à la racine du workspace — il installe tout automatiquement.
+- Python 3.10+ (inclus avec Ubuntu 24.04)
+
+### 2. Cloner le dépôt
+
+```bash
+git clone <URL_DU_DEPOT> ~/your_ws/src/ros2_robot_bridge
+```
+
+Ou si vous travaillez sur un Raspberry Pi isolé (pas de connexion internet), voir le workflow de déploiement par bundle git dans les notes de déploiement.
+
+### 3. Installer les dépendances Python
+
+```bash
+pip install -r ~/your_ws/src/ros2_robot_bridge/requirements.txt
+```
+
+Pour **NAO / Pepper**, le SDK `qi` doit aussi être installé. Il n'est pas disponible sur PyPI — récupérez-le depuis le SDK NAOqi officiel (SoftBank Robotics) et placez-le sur votre `PYTHONPATH`.
+
+Pour **QTrobot**, `roslibpy` suffit (il est dans le `requirements.txt`).
+
+### 4. Compiler
+
+```bash
+source /opt/ros/jazzy/setup.bash
+cd ~/your_ws
+colcon build --packages-skip nao_meshes pepper_meshes
+source install/setup.bash
+```
+
+> **Note importante :** sourcez uniquement `/opt/ros/jazzy/setup.bash`, pas d'autres overlays ROS — cela cause un mismatch ABI FastCDR.
+
+### 5. Lancer le bridge avec votre robot
+
+**NAO :**
+```bash
+ros2 launch ros2_robot_bridge robot_bridge.launch.py \
+    robot_type:=nao robot_version:=v5 naoqi_host:=<ROBOT_IP> woz:=true
+```
+
+**Pepper :**
+```bash
+ros2 launch ros2_robot_bridge robot_bridge.launch.py \
+    robot_type:=pepper robot_version:=v1.8 naoqi_host:=<ROBOT_IP> woz:=true
+```
+
+**QTrobot :**
+```bash
+ros2 launch ros2_robot_bridge robot_bridge.launch.py \
+    robot_type:=qtrobot robot_version:=qt2 qt_host:=<QT_IP> woz:=true
+```
+
+Remplacez `<ROBOT_IP>` ou `<QT_IP>` par l'adresse IP de votre robot sur le réseau local.
+
+### 6. Ouvrir l'interface WOZ
+
+Dans un navigateur (sur la même machine ou tout appareil du même réseau) :
+
+```
+https://<IP_DU_BRIDGE>:5555
+```
+
+Le navigateur affichera un avertissement de certificat auto-signé — cliquez sur **"Avancé" → "Continuer quand même"**. Cela est normal et requis pour l'accès microphone sur HTTPS.
+
+Sur la page `/robots` : entrez le type et l'IP du robot, puis cliquez sur **Connecter**. La connexion se fait en arrière-plan (~4 secondes). Vous serez redirigé vers la page de login où vous pouvez entrer les noms de l'enfant et de l'accompagnant.
+
+### 7. Utiliser l'interface
+
+- Naviguez entre les onglets (**Scénarios**, **Réactions**, **Maison**, **Macros**, **Vocal**).
+- Le bouton **⛔ STOP** (toujours visible) arrête tout mouvement et toute parole en cours.
+- Les widgets **Volume** et **Vitesse** (bord gauche) sont persistés dans le navigateur.
+- Niveau de complexité (Simple/Standard/Avancé) : le badge dans le fil d'Ariane déverrouille des fonctions supplémentaires.
+
+---
+
 ## Prerequisites
 
 ### NAO / Pepper
@@ -74,7 +156,7 @@ bash setup.sh
 
 ```bash
 source /opt/ros/jazzy/setup.bash
-cd ~/Lutin/mw_ws
+cd ~/your_ws          # replace with your actual workspace path
 colcon build --packages-skip nao_meshes pepper_meshes
 source install/setup.bash
 ```
@@ -86,13 +168,13 @@ source install/setup.bash
 ### NAO
 ```bash
 ros2 launch ros2_robot_bridge robot_bridge.launch.py \
-    robot_type:=nao robot_version:=v5 naoqi_host:=192.168.24.46
+    robot_type:=nao robot_version:=v5 naoqi_host:=<ROBOT_IP>
 ```
 
 ### Pepper
 ```bash
 ros2 launch ros2_robot_bridge robot_bridge.launch.py \
-    robot_type:=pepper robot_version:=v1.8 naoqi_host:=192.168.24.11
+    robot_type:=pepper robot_version:=v1.8 naoqi_host:=<ROBOT_IP>
 ```
 
 `robot_version` is optional for NAO and Pepper (used for display only — does not affect behavior).
@@ -100,7 +182,7 @@ ros2 launch ros2_robot_bridge robot_bridge.launch.py \
 ### QTrobot QT1
 ```bash
 ros2 launch ros2_robot_bridge robot_bridge.launch.py \
-    robot_type:=qtrobot robot_version:=qt1 qt_host:=192.168.100.1
+    robot_type:=qtrobot robot_version:=qt1 qt_host:=<QT_IP>
 ```
 
 ### QTrobot QT2
@@ -159,11 +241,20 @@ The browser always lands on `/robots` first. This page lists all currently conne
 - **IP address** — the robot's IP on your network
 
 On submit the WOZ:
-1. Verifies the robot is reachable on its expected port (9559 for NAO/Pepper, 9090 for QTrobot).
-2. Opens a dedicated qi session for the new robot in a background thread.
-3. Redirects to `/r/<rid>/login` for that robot.
+1. Verifies the robot is reachable on its expected port (9559 for NAO/Pepper, 9090 for QTrobot) with a 4-second socket check.
+2. Creates a `_RobotSlot` and starts connecting in a background thread.
+3. Sets the Flask session immediately and redirects to the login page — the robot connects asynchronously; commands silently no-op until connected.
 
-Robots can be disconnected individually from the `/robots` page. The live robot list is also available as JSON at `/robots/status`.
+Robots can be disconnected individually from the `/robots` page. Previously-connected robots are listed at the top with an **"Ouvrir"** button to re-enter their session. The live robot list is also available as JSON at `/robots/status`.
+
+### Internal architecture — WOZ bypasses the ROS pipeline
+
+`woz_node.py` does **not** publish `RobotCmd` messages or use `command_dispatcher`. It maintains its own direct robot connections via `_RobotSlot` objects:
+
+- **NAO / Pepper:** opens a `qi.Session` (port 9559) and calls `ALTextToSpeech`, `ALMotion`, `ALBehaviorManager`, `ALLeds`, `ALAudioDevice` directly.
+- **QTrobot:** opens a `roslibpy.Ros` WebSocket (port 9090) and publishes to `/qt_robot/speech/say`, `/qt_robot/gesture/play`, `/qt_robot/emotion/show`, and joint topics directly.
+
+This means WOZ robot control is completely independent from the `nao_bridge` / `qt_bridge` ROS nodes. The two paths share gesture vocabulary but run in parallel.
 
 ### Login
 
@@ -171,13 +262,13 @@ All fields are optional. Defaults are **Enfant** (child) and **Accompagnant** (t
 
 ### Pages
 
-| Tab | Description |
-|-----|-------------|
-| **Scénario et Jeux** | Scenario launch and explanation buttons grouped by game type |
-| **Réactions** | Quick-reaction buttons (emotions, feedback, questions) for live improvisation |
-| **Maison** | Alternate activity set (symbolic play, mime, manual activities, daily life) |
-| **Macros** | Quick motion presets, relax/stiffen controls, custom macro buttons (level 2+), and a drag-and-drop block programming editor (level 3) |
-| **Vocal** | Browser microphone → server-side Whisper transcription → robot repeats or executes a voice command |
+| Tab | Route | Description |
+|-----|-------|-------------|
+| **Scénario et Jeux** | `/r/<rid>/scenarios` | Scenario launch and explanation buttons grouped by game type |
+| **Réactions** | `/r/<rid>/reactions` | Quick-reaction buttons (emotions, feedback, questions) for live improvisation |
+| **Maison** | `/r/<rid>/maison` | Alternate activity set (symbolic play, mime, manual activities, daily life) |
+| **Macros** | `/r/<rid>/macros` | Quick motion presets, relax/stiffen controls, custom macro buttons (level 2+), and a drag-and-drop block programming editor (level 3) |
+| **Vocal** | `/r/<rid>/vocal` | Browser microphone → server-side Whisper transcription → robot repeats or executes a voice command |
 
 All tabs include a walk joystick (bottom-right) and a head-look joystick (bottom-left). An **⛔ STOP** button is always visible — pressing it stops all motor movement and interrupts any ongoing speech.
 
@@ -1187,7 +1278,7 @@ ssh nao@<NAO_IP> "naoqi --version 2>/dev/null | head -3"
 
 ## Sensor Topics (NAO / Pepper)
 
-`nao_sensors` publishes live sensor data. All topics are relative to the node namespace, which is `{robot_type}_{last_ip_octet}` (e.g. `nao_46` for IP `192.168.24.46`).
+`nao_sensors` publishes live sensor data. All topics are relative to the node namespace, which is `{robot_type}_{last_ip_octet}` (e.g. `nao_46` for IP `192.168.x.46`).
 
 ### List all sensor topics
 ```bash
@@ -1352,7 +1443,7 @@ install(PROGRAMS
 
 ```bash
 source /opt/ros/jazzy/setup.bash
-cd ~/Lutin/mw_ws
+cd ~/your_ws
 colcon build --packages-select ros2_robot_bridge
 source install/setup.bash
 ```
@@ -1389,21 +1480,24 @@ ros2_robot_bridge/
 │   ├── RobotCmd.msg               # Universal command message
 │   └── RobotConfig.msg            # Active robot description
 ├── woz_templates/                 # Flask HTML templates for the WOZ interface
-│   ├── robots.html                # Robot list and add-robot form (landing page)
-│   ├── login.html
-│   ├── scenarios.html
-│   ├── reactions.html
-│   ├── theatre.html
-│   ├── maison.html
-│   ├── macros.html                # Macro/gesture buttons tab
-│   └── vocal.html                 # Vocal tab (mic button, mode toggle, speed slider, history)
+│   ├── robots.html                # Robot connection/selection page (landing page)
+│   ├── login.html                 # Session login (child + therapist names)
+│   ├── scenarios.html             # Scénario et Jeux tab
+│   ├── reactions.html             # Réactions tab
+│   ├── maison.html                # Maison tab (with joysticks)
+│   ├── macros.html                # Macros tab (quick actions + block programming)
+│   ├── vocal.html                 # Vocal tab (speech-to-text)
+│   ├── theatre.html               # RobotAct (legacy, standalone)
+│   └── blocks.html                # Block editor standalone (unused, kept for reference)
 ├── woz_static/                    # JS/CSS/image assets served by Flask
-│   ├── woz.js / woz.css           # Core UI logic and styles
+│   ├── woz.js / woz.css           # Core UI logic, joysticks, volume/speed widgets
 │   ├── scenarios.js               # Button definitions for the Scenarios tab
 │   ├── reactions.js               # Button definitions for the Réactions tab
 │   ├── theatre.js                 # Button definitions for the RobotAct tab
 │   ├── maison.js                  # Button definitions for the Maison tab
-│   └── vocal.js                   # Vocal tab: MediaRecorder, Whisper client, command dispatch
+│   ├── macros.js                  # Macro buttons + homebrew button editor
+│   ├── vocal.js                   # Vocal tab: MediaRecorder, Whisper client, command dispatch
+│   └── blocks.js                  # Visual block programming editor
 └── launch/
     └── robot_bridge.launch.py     # Single launch file for all robots
 requirements.txt                   # pip dependencies (flask, roslibpy, pyopenssl, faster-whisper)
